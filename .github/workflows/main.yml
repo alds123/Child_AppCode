@@ -28,6 +28,10 @@ jobs:
           npm install -g appium@2.18.0
           appium --version
 
+      - name: Install UiAutomator2 driver
+        run: |
+          appium driver install uiautomator2
+
       - name: Start Appium Server
         run: |
           nohup appium > appium.log 2>&1 &
