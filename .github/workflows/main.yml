@@ -43,6 +43,17 @@ jobs:
           $ANDROID_HOME/emulator/emulator -avd API_36 -no-audio -no-window -no-boot-anim &
         timeout-minutes: 5
 
+      - name: Wait for Emulator to Boot
+        run: |
+          adb wait-for-device
+          boot_completed=""
+          until [[ "$boot_completed" == "1" ]]; do
+            sleep 5
+            boot_completed=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+            echo "Waiting for emulator to fully boot... ($boot_completed)"
+          done
+          adb shell input keyevent 82
+
       - name: Run Tests
         run: mvn clean test
 
