@@ -34,10 +34,13 @@ jobs:
 
       - name: Create and Start Emulator
         run: |
-         echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "system-images;android-34;google_apis;arm64-v8a"
-         echo "no" | avdmanager create avd -n API_36 -k "system-images;android-34;google_apis;arm64-v8a" --device "pixel"
-         $ANDROID_HOME/emulator/emulator -avd API_36 -no-audio -no-window -no-boot-anim &
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "system-images;android-34;google_apis;arm64-v8a"
+          echo "no" | avdmanager create avd -n API_36 -k "system-images;android-34;google_apis;arm64-v8a" --device "pixel"
+          $ANDROID_HOME/emulator/emulator -avd API_36 -no-audio -no-window -no-boot-anim &
         timeout-minutes: 5
+
+      - name: Run Tests
+        run: mvn clean test
 
       - name: Upload test reports (optional)
         if: always()
