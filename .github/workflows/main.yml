@@ -39,9 +39,9 @@ jobs:
 
       - name: Create and Start Emulator
         run: |
-          echo "y" | sdkmanager --install "system-images;android-34;google_apis;x86_64"
-          echo "no" | avdmanager create avd -n API_36 -k "system-images;android-34;google_apis;x86_64" --device "pixel"
-          $ANDROID_HOME/emulator/emulator -avd API_36 -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -accel off &
+          echo "y" | sdkmanager --install "system-images;android-34;google_apis;arm64-v8a"
+          echo "no" | avdmanager create avd -n API_36 -k "system-images;android-34;google_apis;arm64-v8a" --device "pixel"
+          $ANDROID_HOME/emulator/emulator -avd API_36 -no-window -no-audio -no-boot-anim -accel off &
         timeout-minutes: 5
 
       - name: Wait for Emulator to Boot
