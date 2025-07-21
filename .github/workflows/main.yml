@@ -31,6 +31,7 @@ jobs:
       - name: Install UiAutomator2 driver
         run: |
           appium driver install uiautomator2
+          appium driver list --installed
 
       - name: Start Appium Server
         run: |
@@ -38,9 +39,9 @@ jobs:
 
       - name: Create and Start Emulator
         run: |
-          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "system-images;android-34;google_apis;arm64-v8a"
+          echo "y" | sdkmanager --install "system-images;android-34;google_apis;arm64-v8a"
           echo "no" | avdmanager create avd -n API_36 -k "system-images;android-34;google_apis;arm64-v8a" --device "pixel"
-          $ANDROID_HOME/emulator/emulator -avd API_36 -no-audio -no-window -no-boot-anim &
+          $ANDROID_HOME/emulator/emulator -avd API_36 -no-window -no-audio -no-boot-anim -gpu off &
         timeout-minutes: 5
 
       - name: Wait for Emulator to Boot
@@ -57,7 +58,7 @@ jobs:
       - name: Run Tests
         run: mvn clean test
 
-      - name: Upload test reports (optional)
+      - name: Upload Test Reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
