@@ -9,54 +9,48 @@ on:
 jobs:
   android-tests:
     runs-on: macos-latest
-    timeout-minutes: 30
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+    - name: Checkout Code
+      uses: actions/checkout@v4
 
-      - name: Set up Java
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '17'
+    - name: Set up Java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'zulu'
+        java-version: '17'
 
-      - name: Set up Android SDK
-        run: |
-          mkdir -p "$HOME/android-sdk/cmdline-tools"
-          curl -o commandlinetools.zip https://dl.google.com/android/repository/commandlinetools-mac-9477386_latest.zip
-          unzip -q commandlinetools.zip -d "$HOME/android-sdk/cmdline-tools"
-          mv "$HOME/android-sdk/cmdline-tools/cmdline-tools" "$HOME/android-sdk/cmdline-tools/latest"
+    - name: Set up Android SDK
+      uses: android-actions/setup-android@v3
 
-          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
-          echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
-          echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
-          echo "$HOME/android-sdk/emulator" >> $GITHUB_PATH
+    - name: Accept Licenses & Install SDK Packages
+      run: |
+        yes | sdkmanager --licenses
+        sdkmanager --sdk_root="$HOME/android-sdk" \
+          "platform-tools" "platforms;android-34" "build-tools;34.0.0" \
+          "emulator" "system-images;android-34;google_apis_playstore;x86_64"
 
-      - name: Accept Licenses & Install SDK Packages
-        run: |
-          sdkmanager --sdk_root="$HOME/android-sdk" --licenses || true
-          sdkmanager --sdk_root="$HOME/android-sdk" \
-            "platform-tools" "platforms;android-34" "build-tools;34.0.0" \
-            "emulator" "system-images;android-34;google_apis;x86_64"
+    - name: Create and Start Emulator
+      run: |
+        echo "no" | avdmanager create avd -n test -k "system-images;android-34;google_apis_playstore;x86_64" --device "pixel"
+        $ANDROID_HOME/emulator/emulator -avd test -no-audio -no-window -gpu swiftshader_indirect &
 
-      - name: Create and Start Emulator
-        run: |
-          echo "no" | avdmanager create avd -n test -k "system-images;android-34;google_apis;x86_64" --device "pixel"
-          emulator -avd test -no-audio -no-window -no-boot-anim -gpu swiftshader_indirect &
-          adb wait-for-device
-          boot_completed=""
-          until [[ "$boot_completed" == "1" ]]; do
-            sleep 5
-            boot_completed=$(adb shell getprop sys.boot_completed | tr -d '\r')
-          done
-          echo "Emulator is ready"
+        # Wait for emulator to fully start
+        adb wait-for-device
+        boot_completed=""
+        until [[ "$boot_completed" == "1" ]]; do
+          boot_completed=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+          echo "Waiting for emulator to boot..."
+          sleep 5
+        done
+        echo "Emulator is ready!"
 
-      - name: Run Tests
-        run: mvn clean test
+    - name: Run Tests
+      run: mvn clean test
 
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-screenshots
-          path: path/to/your/screenshots
+    - name: Upload Artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: app/target/
