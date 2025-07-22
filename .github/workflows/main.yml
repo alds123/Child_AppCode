@@ -23,17 +23,14 @@ jobs:
       - name: Download Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install system image
-        run: |
-          yes | sdkmanager "system-images;android-34;google_apis;x86_64"
+      - name: Install ARM64 system image
+        run: yes | sdkmanager "system-images;android-34;google_apis;arm64-v8a"
 
       - name: Accept licenses
         run: yes | sdkmanager --licenses
 
-      - name: Create AVD
-        run: |
-          echo "Creating AVD named 'test'..."
-          echo no | avdmanager create avd -n test -k "system-images;android-34;google_apis;x86_64" --device "pixel" --force
+      - name: Create AVD (ARM64)
+        run: echo "no" | avdmanager create avd -n test -k "system-images;android-34;google_apis;arm64-v8a" --device "pixel" --force
 
       - name: List all AVDs
         run: avdmanager list avd
