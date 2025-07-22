@@ -11,41 +11,39 @@ jobs:
     runs-on: macos-14
 
     steps:
-      - name: Checkout Code
+      - name: 📥 Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up Java 17
+      - name: ☕ Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Download SDK Tools & System Image
+      - name: 📦 Install Android SDK & ARM64 System Image
         run: |
-          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-            "system-images;android-34;google_apis;x86_64"
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "system-images;android-34;google_apis_playstore;arm64-v8a"
           echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
 
-      - name: Create and Start Emulator
+      - name: 📱 Create & Start ARM64 Emulator
         run: |
-          echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager \
-            create avd -n API_36 -k "system-images;android-34;google_apis;x86_64" \
-            --device "pixel"
+          echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n test -k "system-images;android-34;google_apis_playstore;arm64-v8a" --device "pixel"
           
-          $ANDROID_HOME/emulator/emulator -avd API_36 -no-audio -no-boot-anim -accel auto &
+          $ANDROID_HOME/emulator/emulator -avd test -no-window -no-audio -gpu swiftshader_indirect -accel off &
 
           adb wait-for-device
-          until [[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]]; do
-            echo "Waiting for emulator boot…"
+          boot_completed=""
+          until [[ "$boot_completed" == "1" ]]; do
+            boot_completed=$(adb shell getprop sys.boot_completed | tr -d '\r')
+            echo "⏳ Waiting for emulator to boot..."
             sleep 5
           done
-
           echo "✅ Emulator is ready!"
 
-      - name: Run Tests
+      - name: 🧪 Run Maven Tests
         run: mvn clean test
 
-      - name: Upload Test Reports
+      - name: 📤 Upload Test Reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
