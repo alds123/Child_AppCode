@@ -21,17 +21,29 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Download Android SDK Tools
+      - name: Set up Android SDK
         run: |
-          yes | sdkmanager --licenses
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" \
-                     "emulator" "cmdline-tools;latest" \
-                     "system-images;android-34;google_apis;x86_64"
+          mkdir -p "$HOME/android-sdk/cmdline-tools"
+          curl -o commandlinetools.zip https://dl.google.com/android/repository/commandlinetools-mac-9477386_latest.zip
+          unzip -q commandlinetools.zip -d "$HOME/android-sdk/cmdline-tools"
+          mv "$HOME/android-sdk/cmdline-tools/cmdline-tools" "$HOME/android-sdk/cmdline-tools/latest"
+
+          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
+          echo "$HOME/android-sdk/emulator" >> $GITHUB_PATH
+
+      - name: Accept Licenses & Install SDK Packages
+        run: |
+          sdkmanager --sdk_root="$HOME/android-sdk" --licenses || true
+          sdkmanager --sdk_root="$HOME/android-sdk" \
+            "platform-tools" "platforms;android-34" "build-tools;34.0.0" \
+            "emulator" "system-images;android-34;google_apis;x86_64"
 
       - name: Create and Start Emulator
         run: |
           echo "no" | avdmanager create avd -n test -k "system-images;android-34;google_apis;x86_64" --device "pixel"
-          $ANDROID_HOME/emulator/emulator -avd test -no-snapshot -no-audio -no-window -gpu swiftshader_indirect &
+          emulator -avd test -no-audio -no-window -no-boot-anim -gpu swiftshader_indirect &
           adb wait-for-device
           boot_completed=""
           until [[ "$boot_completed" == "1" ]]; do
@@ -47,4 +59,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-screenshots
-          path: path/to/your/screenshots/folder
+          path: path/to/your/screenshots
