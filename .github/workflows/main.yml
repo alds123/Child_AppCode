@@ -1,5 +1,4 @@
-
-       name: Android UI Tests with Appium
+name: Android CI with Appium
 
 on:
   push:
@@ -9,10 +8,10 @@ on:
 
 jobs:
   android-tests:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
 
     steps:
-      - name: Checkout Code
+      - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: Set up Java 17
@@ -24,47 +23,36 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Appium
+      - name: Install Appium 2.x
         run: |
           npm install -g appium@2.18.0
           appium --version
 
-      - name: Install UiAutomator2
+      - name: Install UiAutomator2 driver
         run: |
           appium driver install uiautomator2
+          appium driver list --installed
 
       - name: Start Appium Server
         run: |
           nohup appium > appium.log 2>&1 &
 
-      - name: Create Emulator
+      - name: Create and Start Emulator
         run: |
-          echo "y" | sdkmanager --install "system-images;android-30;google_apis;x86_64"
-          echo "no" | avdmanager create avd -n test_emulator -k "system-images;android-30;google_apis;x86_64" --device "pixel"
-
-      - name: Start Emulator
-        run: |
-          $ANDROID_HOME/emulator/emulator -avd test_emulator -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -accel off > emulator.log 2>&1 &
+          echo "y" | sdkmanager --install "system-images;android-34;google_apis;x86_64"
+          echo "no" | avdmanager create avd -n API_34 -k "system-images;android-34;google_apis;x86_64" --device "pixel"
+          $ANDROID_HOME/emulator/emulator -avd API_34 -no-window -no-audio -no-boot-anim -accel off -gpu swiftshader_indirect &
         timeout-minutes: 5
 
       - name: Wait for Emulator to Boot
         run: |
           adb wait-for-device
           boot_completed=""
-          retries=0
-          while [[ "$boot_completed" != "1" && $retries -lt 30 ]]; do
-            sleep 10
+          until [[ "$boot_completed" == "1" ]]; do
+            sleep 5
             boot_completed=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
             echo "Waiting for emulator to fully boot... ($boot_completed)"
-            ((retries++))
           done
-
-          if [[ "$boot_completed" != "1" ]]; then
-            echo "Emulator failed to boot"
-            cat emulator.log
-            exit 1
-          fi
-
           adb shell input keyevent 82
 
       - name: Run Tests
