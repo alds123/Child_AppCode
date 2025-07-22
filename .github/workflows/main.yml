@@ -23,20 +23,17 @@ jobs:
       - name: Download Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Create and Start x86 Emulator
-        run: |
-          echo "y" | sdkmanager --install "system-images;android-34;google_apis;x86_64"
-          echo "no" | avdmanager create avd -n test -k "system-images;android-34;google_apis;x86_64" --device "pixel"
-          $ANDROID_HOME/emulator/emulator -avd test -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -accel off &
-        timeout-minutes: 10
-
-      - name: Simple Emulator Boot Wait
-        run: |
-          sleep 30  # or adjust based on your emulator's speed
-          adb shell input keyevent 82
-
-      - name: Run Tests
-        run: mvn clean test
+      - name: Start Emulator
+        uses: ReactiveCircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel
+          headless: true
+          script: |
+            adb shell input keyevent 82
+            mvn clean test
 
       - name: Upload Test Reports
         if: always()
