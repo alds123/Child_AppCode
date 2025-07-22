@@ -9,10 +9,11 @@ on:
 jobs:
   android-tests:
     runs-on: macos-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Java
         uses: actions/setup-java@v3
@@ -20,39 +21,24 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Download Android SDK & Tools
-        run: |
-          mkdir -p $HOME/android-sdk/cmdline-tools
-          cd $HOME/android-sdk/cmdline-tools
-          curl -o tools.zip https://dl.google.com/android/repository/commandlinetools-mac-10406996_latest.zip
-          unzip tools.zip
-          mv cmdline-tools latest
-          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
-          echo "$HOME/android-sdk/emulator" >> $GITHUB_PATH
-          echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
-          echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
-
-      - name: Install Android Packages
+      - name: Download Android SDK Tools
         run: |
           yes | sdkmanager --licenses
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "emulator" "system-images;android-34;google_apis;arm64-v8a"
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" \
+                     "emulator" "cmdline-tools;latest" \
+                     "system-images;android-34;google_apis;x86_64"
 
-      - name: Confirm system image installed
+      - name: Create and Start Emulator
         run: |
-          sdkmanager --list | grep "system-images;android-34;google_apis;arm64-v8a"
-
-      - name: Create AVD
-        run: |
-          echo "no" | avdmanager create avd -n test -k "system-images;android-34;google_apis;arm64-v8a" --device "pixel"
-
-      - name: Start Emulator
-        run: |
-          $ANDROID_HOME/emulator/emulator -avd test -no-audio -no-boot-anim -no-window &
+          echo "no" | avdmanager create avd -n test -k "system-images;android-34;google_apis;x86_64" --device "pixel"
+          $ANDROID_HOME/emulator/emulator -avd test -no-snapshot -no-audio -no-window -gpu swiftshader_indirect &
           adb wait-for-device
-          adb shell settings put global window_animation_scale 0
-          adb shell settings put global transition_animation_scale 0
-          adb shell settings put global animator_duration_scale 0
-          sleep 30
+          boot_completed=""
+          until [[ "$boot_completed" == "1" ]]; do
+            sleep 5
+            boot_completed=$(adb shell getprop sys.boot_completed | tr -d '\r')
+          done
+          echo "Emulator is ready"
 
       - name: Run Tests
         run: mvn clean test
@@ -60,5 +46,5 @@ jobs:
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
-          path: target/surefire-reports/
+          name: test-screenshots
+          path: path/to/your/screenshots/folder
