@@ -23,12 +23,12 @@ jobs:
       - name: Download Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Create and Start ARM64 Emulator
+      - name: Create and Start x86 Emulator
         run: |
-          echo "y" | sdkmanager --install "system-images;android-34;google_apis;arm64-v8a"
-          echo "no" | avdmanager create avd -n API_34 -k "system-images;android-34;google_apis;arm64-v8a" --device "pixel"
-          $ANDROID_HOME/emulator/emulator -avd API_34 -gpu swiftshader_indirect -no-audio -no-boot-anim -netdelay none -netspeed full &
-        timeout-minutes: 5
+          echo "y" | sdkmanager --install "system-images;android-34;google_apis;x86_64"
+          echo "no" | avdmanager create avd -n test -k "system-images;android-34;google_apis;x86_64" --device "pixel"
+          $ANDROID_HOME/emulator/emulator -avd test -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -accel off &
+        timeout-minutes: 10
 
       - name: Wait for Emulator to Boot
         run: |
