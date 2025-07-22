@@ -54,5 +54,21 @@
                 <version>4.13.2</version>
             </dependency>
         </dependencies>
+         <build>
+  <plugins>
+    <plugin>
+      <groupId>org.apache.maven.plugins</groupId>
+      <artifactId>maven-surefire-plugin</artifactId>
+      <version>3.2.5</version>
+      <configuration>
+        <includes>
+          <include>**/*Test.java</include>
+        </includes>
+        <testFailureIgnore>false</testFailureIgnore>
+      </configuration>
+    </plugin>
+  </plugins>
+</build>
+
 
 </project>
