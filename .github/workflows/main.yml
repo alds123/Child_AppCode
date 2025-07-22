@@ -8,7 +8,8 @@ on:
 
 jobs:
   android-tests:
-    runs-on: macos-latest
+    # This job will run on your self-hosted runner (which is the Ubuntu machine you set up)
+    runs-on: self-hosted
 
     steps:
       - name: Checkout repository
@@ -20,18 +21,24 @@ jobs:
           distribution: 'temurin'
           java-version: 17
 
-      - name: Download Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Create and Start ARM Emulator
+      - name: Prepare Android Environment
         run: |
-          echo "y" | sdkmanager --install "system-images;android-34;google_apis;arm64-v8a"
-          echo "no" | avdmanager create avd -n test -k "system-images;android-34;google_apis;arm64-v8a" --device "pixel"
-          $ANDROID_HOME/emulator/emulator -avd test -no-snapshot -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -accel off &
-        timeout-minutes: 10
+          export ANDROID_HOME=$HOME/android-sdk
+          export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
+          sdkmanager "platform-tools" "emulator" "platforms;android-34" "system-images;android-34;google_apis;x86_64"
+
+      - name: Create Emulator
+        run: |
+          echo "no" | avdmanager create avd -n test -k "system-images;android-34;google_apis;x86_64" --device "pixel"
+
+      - name: Start Emulator
+        run: |
+          $ANDROID_HOME/emulator/emulator -avd test -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect &
+          sleep 10
 
       - name: Wait for Emulator to Boot
         run: |
+          adb start-server
           adb wait-for-device
           boot_completed=""
           until [[ "$boot_completed" == "1" ]]; do
