@@ -23,30 +23,15 @@ jobs:
       - name: Download Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install ARM64 system image
-        run: yes | sdkmanager "system-images;android-34;google_apis;arm64-v8a"
-
-      - name: Accept licenses
-        run: yes | sdkmanager --licenses
-
-      - name: Create AVD (ARM64)
-        run: echo "no" | avdmanager create avd -n test -k "system-images;android-34;google_apis;arm64-v8a" --device "pixel" --force
-
-      - name: List all AVDs
-        run: avdmanager list avd
-
-      - name: Start Emulator in Background
+      - name: Create and Start ARM Emulator
         run: |
-          echo "Starting emulator..."
-          $ANDROID_HOME/emulator/emulator -avd test -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -accel off &
-          sleep 5
-
-      - name: Check Emulator Process
-        run: ps aux | grep emulator
+          echo "y" | sdkmanager --install "system-images;android-34;google_apis;arm64-v8a"
+          echo "no" | avdmanager create avd -n test -k "system-images;android-34;google_apis;arm64-v8a" --device "pixel"
+          $ANDROID_HOME/emulator/emulator -avd test -no-snapshot -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -accel off &
+        timeout-minutes: 10
 
       - name: Wait for Emulator to Boot
         run: |
-          adb start-server
           adb wait-for-device
           boot_completed=""
           until [[ "$boot_completed" == "1" ]]; do
