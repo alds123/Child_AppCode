@@ -59,13 +59,17 @@ jobs:
             sleep 5
             elapsed=$((elapsed + 5))
           done
-
           if [[ "$boot_completed" != "1" ]]; then
             echo "❌ Emulator failed to boot in $timeout seconds"
             exit 1
           fi
-
           echo "✅ Emulator booted successfully!"
+
+          echo "⌛ Waiting 30 more seconds to ensure UI is ready..."
+          sleep 30
+
+          echo "📱 Connected ADB Devices:"
+          $ANDROID_HOME/platform-tools/adb devices
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
 
