@@ -19,20 +19,18 @@ jobs:
         distribution: 'temurin'
         java-version: 17
 
-    - name: Download Dependencies
-      run: ./gradlew dependencies || true
-
     - name: Install Emulator and System Images
       run: |
-        echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "system-images;android-34;google_apis;x86_64"
+        echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --install "system-images;android-34;google_apis;x86_64"
 
     - name: Create AVD
-      run: echo "no" | avdmanager create avd -n API_34 -k "system-images;android-34;google_apis;x86_64" --device "pixel"
+      run: |
+        echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n API_34 -k "system-images;android-34;google_apis;x86_64" --device "pixel"
 
     - name: Start Emulator
       run: |
         nohup $ANDROID_HOME/emulator/emulator -avd API_34 -no-window -no-audio -no-snapshot > /dev/null 2>&1 &
-    
+
     - name: Wait for Emulator to Boot
       run: |
         adb wait-for-device
