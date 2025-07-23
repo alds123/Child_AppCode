@@ -24,31 +24,39 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: 📥 Install x86 system image
+      - name: 📥 Install Android system image (ARM64)
         run: |
           echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-            "system-images;android-34;google_apis;x86_64"
+            "platform-tools" \
+            "emulator" \
+            "system-images;android-34;google_apis;arm64-v8a"
 
       - name: 📱 Create AVD
         run: |
-          mkdir -p ~/.android/avd
           echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager \
-            create avd -n test -k "system-images;android-34;google_apis;x86_64" --device "pixel"
-          $ANDROID_HOME/emulator/emulator -list-avds
-          ls ~/.android/avd
+            create avd -n test -k "system-images;android-34;google_apis;arm64-v8a" --device "pixel"
 
       - name: 🚀 Start Emulator
         run: |
-          export PATH=$ANDROID_HOME/emulator:$PATH
+          echo "📍 Add emulator and platform-tools to PATH"
+          export PATH=$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$PATH
+
+          echo "🧰 Accept licenses if not already done"
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
+
+          echo "📦 Start emulator in background"
           nohup emulator -avd test -no-audio -no-window -gpu off &
+
+          echo "🧲 Waiting for emulator to be ready"
           adb wait-for-device
+
           boot_completed=""
           until [[ "$boot_completed" == "1" ]]; do
             boot_completed=$(adb shell getprop sys.boot_completed | tr -d '\r')
-            echo "⏳ Waiting for emulator to boot..."
+            echo "⏳ Still booting..."
             sleep 5
           done
           echo "✅ Emulator booted"
 
-      - name: 🧪 Run tests
+      - name: 🧪 Run Tests
         run: mvn clean test
