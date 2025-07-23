@@ -2,12 +2,14 @@ name: Android Emulator Test
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
@@ -16,50 +18,50 @@ jobs:
       - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
+          java-version: '17'
           distribution: 'temurin'
-          java-version: 17
 
-      - name: Install Android SDK & System Image
+      - name: Accept Licenses and Install Android SDK
+        uses: android-actions/setup-android@v2
+
+      - name: Wait to Ensure SDK Fully Installed
+        run: sleep 20
+
+      - name: Add cmdline-tools to PATH
+        run: echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
+
+      - name: Install system image
         run: |
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-            "platform-tools" \
-            "emulator" \
-            "platforms;android-34" \
-            "system-images;android-34;google_apis;x86_64"
+          echo "y" | sdkmanager "system-images;android-34;google_apis;x86_64"
 
       - name: Create AVD
         run: |
           echo "no" | avdmanager create avd -n API_34 -k "system-images;android-34;google_apis;x86_64" --device "pixel"
           echo "hw.gpu.enabled=no" >> ~/.android/avd/API_34.avd/config.ini
 
-      - name: Start Emulator
+      - name: Start Emulator in Background
         run: |
-          nohup $ANDROID_HOME/emulator/emulator -avd API_34 -no-audio -no-window -accel auto -no-snapshot-save > emulator.log 2>&1 &
-          sleep 30
+          $ANDROID_HOME/emulator/emulator -avd API_34 -no-audio -no-window -no-boot-anim -gpu swiftshader_indirect &
+        timeout-minutes: 1
 
-      - name: Wait for Emulator Boot
+      - name: Wait for Emulator to Boot (with Timeout)
         run: |
-          $ANDROID_HOME/platform-tools/adb wait-for-device
-          boot_completed=""
-          for i in {1..30}; do
-            boot_completed=$($ANDROID_HOME/platform-tools/adb shell getprop sys.boot_completed | tr -d '\r')
-            if [ "$boot_completed" == "1" ]; then
-              echo "✅ Boot completed after $((i*5)) seconds"
-              break
-            fi
-            echo "⏳ Waiting... ($((i*5))s)"
-            sleep 5
-          done
-          if [ "$boot_completed" != "1" ]; then
-            echo "❌ Emulator failed to boot"
-            cat emulator.log || echo "⚠️ No emulator log"
-            exit 1
-          fi
-          sleep 15
+          timeout 5m bash -c '
+          until adb shell getprop sys.boot_completed | grep -m 1 "1"; do
+            sleep 10
+            echo "Waiting for emulator to boot..."
+          done'
+        timeout-minutes: 10
 
-      - name: List Connected Devices
+      - name: Show Emulator Logs
+        run: adb logcat -d || true
+
+      - name: Connected ADB Devices
         run: adb devices
 
       - name: Run Tests
         run: mvn clean test
+
+      - name: Post Set up JDK 17
+        if: always()
+        run: echo "Tests completed."
