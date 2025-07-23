@@ -1,49 +1,65 @@
-name: android-tests
+name: Android Emulator Test
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
-  android-tests:
+  test:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout Repository
+      - name: Checkout code
         uses: actions/checkout@v3
 
       - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
-          java-version: '17'
           distribution: 'temurin'
+          java-version: 17
 
-      - name: Download and Set Up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Emulator and System Images
+      - name: Download Android SDK components
         run: |
-          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "platform-tools" "emulator" "platforms;android-34" "system-images;android-34;google_apis;x86_64"
+          yes | sudo ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --licenses
+          sudo ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager \
+            "platform-tools" \
+            "emulator" \
+            "platforms;android-34" \
+            "system-images;android-34;google_apis;x86_64"
 
       - name: Create AVD
         run: |
-          echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n API_34 -k "system-images;android-34;google_apis;x86_64" --device "pixel"
+          echo "no" | ${ANDROID_HOME}/cmdline-tools/latest/bin/avdmanager create avd \
+            -n API_34 -k "system-images;android-34;google_apis;x86_64" --device "pixel"
 
-      - name: Start Emulator
+      - name: Start Emulator in Background
         run: |
-          nohup $ANDROID_HOME/emulator/emulator -avd API_34 -no-window -no-audio -no-snapshot > /dev/null 2>&1 &
+          nohup $ANDROID_HOME/emulator/emulator -avd API_34 -no-audio -no-boot-anim -no-window -gpu swiftshader_indirect > emulator.log 2>&1 &
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
 
-      - name: Wait for Emulator to Boot
+      - name: Wait for Emulator to Boot (with Timeout)
         run: |
           $ANDROID_HOME/platform-tools/adb wait-for-device
           boot_completed=""
-          until [[ "$boot_completed" == "1" ]]; do
+          timeout=180
+          elapsed=0
+          while [[ "$boot_completed" != "1" && "$elapsed" -lt "$timeout" ]]; do
             boot_completed=$($ANDROID_HOME/platform-tools/adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
-            echo "Waiting for emulator to boot..."
+            echo "Waiting for emulator to boot... ($elapsed seconds)"
             sleep 5
+            elapsed=$((elapsed + 5))
           done
-          echo "Emulator booted successfully!"
+
+          if [[ "$boot_completed" != "1" ]]; then
+            echo "❌ Emulator failed to boot in $timeout seconds"
+            exit 1
+          fi
+
+          echo "✅ Emulator booted successfully!"
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
 
       - name: Run Tests
         run: mvn clean test
