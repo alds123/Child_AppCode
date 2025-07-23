@@ -13,9 +13,11 @@ jobs:
     env:
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
       ANDROID_HOME: /usr/local/lib/android/sdk
+      AVD_NAME: test_avd
+      AVD_PATH: /home/runner/.android/avd
 
     steps:
-      - name: 📦 Checkout repository
+      - name: 📦 Checkout code
         uses: actions/checkout@v4
 
       - name: ☕ Set up Java 17
@@ -24,39 +26,37 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: 📥 Install Android system image (ARM64)
+      - name: 📥 Install system image and tools
         run: |
           echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
             "platform-tools" \
             "emulator" \
             "system-images;android-34;google_apis;arm64-v8a"
 
+      - name: 📁 Create AVD directory
+        run: mkdir -p $AVD_PATH
+
       - name: 📱 Create AVD
         run: |
-          echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager \
-            create avd -n test -k "system-images;android-34;google_apis;arm64-v8a" --device "pixel"
+          echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd \
+            -n $AVD_NAME \
+            -k "system-images;android-34;google_apis;arm64-v8a" \
+            --device "pixel"
 
       - name: 🚀 Start Emulator
         run: |
-          echo "📍 Add emulator and platform-tools to PATH"
           export PATH=$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$PATH
-
-          echo "🧰 Accept licenses if not already done"
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
-
-          echo "📦 Start emulator in background"
-          nohup emulator -avd test -no-audio -no-window -gpu off &
-
-          echo "🧲 Waiting for emulator to be ready"
+          nohup emulator -avd $AVD_NAME -no-window -no-audio -gpu off &
           adb wait-for-device
 
+          echo "⏳ Waiting for emulator to fully boot..."
           boot_completed=""
           until [[ "$boot_completed" == "1" ]]; do
             boot_completed=$(adb shell getprop sys.boot_completed | tr -d '\r')
-            echo "⏳ Still booting..."
+            echo "🕐 Still booting..."
             sleep 5
           done
-          echo "✅ Emulator booted"
+          echo "✅ Emulator ready!"
 
-      - name: 🧪 Run Tests
+      - name: 🧪 Run Appium Tests
         run: mvn clean test
