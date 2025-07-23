@@ -1,4 +1,4 @@
-name: Android Emulator Test
+name: Android Emulator CI
 
 on:
   push:
@@ -12,7 +12,7 @@ jobs:
     timeout-minutes: 35
 
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
@@ -21,48 +21,32 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Accept Licenses and Install Android SDK
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 34
-          target: google_apis
-          arch: x86_64
-          force-avd-creation: true
-          disable-animations: true
-          script: echo "Done preparing SDK"
-
-      - name: Wait to Ensure SDK Fully Installed
-        run: sleep 20
+      - name: Install AVD and System Image
+        run: |
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "system-images;android-34;google_apis;x86_64"
 
       - name: Create AVD
         run: |
           echo "no" | avdmanager create avd -n API_34 -k "system-images;android-34;google_apis;x86_64" --device "pixel"
           sleep 5
           if [ -f ~/.android/avd/API_34.avd/config.ini ]; then
-            echo "hw.gpu.enabled=no" >> ~/.android/avd/API_34.avd/config.ini
+            echo "hw.gpu.enabled=yes" >> ~/.android/avd/API_34.avd/config.ini
           else
-            echo "AVD config.ini not found!" && ls -la ~/.android/avd && exit 1
+            echo "AVD config.ini not found!" && exit 1
           fi
 
-      - name: Start Emulator in Background
+      - name: Start Emulator
         run: |
-          $ANDROID_HOME/emulator/emulator -avd API_34 -no-window -no-audio -no-snapshot &
-          echo "Emulator started"
+          nohup $ANDROID_HOME/emulator/emulator -avd API_34 -no-window -no-audio -accel off > /dev/null 2>&1 &
+          sleep 60
 
-      - name: Wait for Emulator to Boot (with Timeout)
+      - name: Wait for Emulator to Boot
         run: |
-          timeout 600 bash -c "until adb shell getprop sys.boot_completed | grep -m 1 '1'; do sleep 5; done"
+          adb wait-for-device
+          adb devices
+          timeout 600 bash -c "until adb shell getprop sys.boot_completed | grep -m 1 '1'; do echo 'Waiting for emulator...'; sleep 10; done"
           adb shell input keyevent 82
-
-      - name: Show Emulator Logs
-        run: adb logcat -d || true
-
-      - name: Connected ADB Devices
-        run: adb devices
+          echo "Emulator is ready"
 
       - name: Run Tests
         run: mvn clean test
-
-      - name: Post Set up JDK 17
-        if: always()
-        run: echo "Job completed"
