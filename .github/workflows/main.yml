@@ -1,55 +1,56 @@
-name: Android Emulator CI
+name: android-tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   android-tests:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: 17
 
-      - name: Download Android SDK
-        uses: android-actions/setup-android@v2
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
       - name: Accept Licenses
         run: yes | sdkmanager --licenses
 
       - name: Install Emulator and System Images
-        run: |
-          sdkmanager "platform-tools" "platforms;android-34" "emulator" "system-images;android-34;google_apis;x86_64"
+        run: sdkmanager "platform-tools" "platforms;android-34" "system-images;android-34;google_apis;x86_64"
 
       - name: Create AVD
-        run: |
-          echo "no" | avdmanager create avd -n API_34 -k "system-images;android-34;google_apis;x86_64" --device "pixel"
+        run: echo "no" | avdmanager create avd -n API_34 -k "system-images;android-34;google_apis;x86_64" --device "pixel"
 
       - name: Start Emulator
         run: |
           nohup $ANDROID_HOME/emulator/emulator -avd API_34 -no-window -no-audio -no-snapshot > /dev/null 2>&1 &
           adb wait-for-device
-          boot_status=""
-          retry=0
-          until [[ "$boot_status" == "1" || $retry -eq 15 ]]; do
+          boot_completed=""
+          retries=0
+          until [[ "$boot_completed" == "1" || $retries -eq 15 ]]; do
             sleep 10
-            boot_status=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
-            echo "Attempt $((retry+1)): boot_completed=$boot_status"
-            retry=$((retry+1))
+            boot_completed=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+            echo "Boot status: $boot_completed (retry: $((retries+1)))"
+            retries=$((retries+1))
           done
-          if [[ "$boot_status" != "1" ]]; then
-            echo "Emulator failed to boot in time"
+
+          if [[ "$boot_completed" != "1" ]]; then
+            echo "❌ Emulator failed to boot."
             exit 1
           fi
+
+          echo "✅ Emulator booted successfully!"
 
       - name: Run Tests
         run: mvn clean test
