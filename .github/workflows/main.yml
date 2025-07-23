@@ -1,67 +1,55 @@
-name: Android Emulator CI
+name: Android Emulator Tests
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   test:
     runs-on: ubuntu-latest
 
-    env:
-      AVD_NAME: test_avd
-      API_LEVEL: 34
-      TARGET: google_apis
-      ARCH: x86_64
-      EMULATOR_PROFILE: pixel
-      ANDROID_HOME: /usr/local/lib/android/sdk
-
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
-          distribution: 'zulu'
-          java-version: '17'
+          distribution: 'temurin'
+          java-version: 17
 
-      - name: Accept licenses
-        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: Start Android Emulator
-        uses: ReactiveCircus/android-emulator-runner@v2
-        with:
-          api-level: 34
-          target: google_apis
-          arch: x86_64
-          profile: pixel
-          emulator-options: -no-window -no-audio -gpu off
-          disable-animations: true
-          script: |
-            echo "Restarting ADB to fix possible device offline..."
-            adb kill-server
-            adb start-server
+      - name: Create AVD and start emulator
+        run: |
+          echo "y" | sdkmanager --install "system-images;android-34;google_apis;x86_64"
+          echo "no" | avdmanager create avd -n test_avd -k "system-images;android-34;google_apis;x86_64" --device "pixel"
+          $ANDROID_HOME/emulator/emulator -avd test_avd -no-window -no-audio -gpu swiftshader_indirect -no-snapshot &
 
-            echo "Waiting for emulator to be online..."
-            booted="0"
-            for i in {1..15}; do
-              status=$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
-              if [[ "$status" == "1" ]]; then
-                booted="1"
-                echo "Emulator booted successfully."
-                break
-              fi
-              echo "Waiting for emulator... ($i)"
-              sleep 10
-            done
+          # Wait for emulator to start
+          adb start-server
+          adb devices
 
-            if [[ "$booted" == "0" ]]; then
-              echo "Emulator failed to boot in time."
-              exit 1
-            fi
+          # Retry loop until boot completes
+          boot_completed=""
+          max_attempts=30
+          attempt=1
+          while [[ "$boot_completed" != "1" && $attempt -le $max_attempts ]]; do
+            echo "Waiting for emulator to boot... attempt $attempt"
+            sleep 10
+            adb devices
+            boot_completed=$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+            ((attempt++))
+          done
 
-            echo "Running tests..."
-            mvn clean test
+          if [[ "$boot_completed" != "1" ]]; then
+            echo "Emulator failed to start properly"
+            exit 1
+          fi
+          
+          echo "Emulator booted successfully"
+
+      - name: Run Tests
+        run: mvn clean test
