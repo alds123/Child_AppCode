@@ -22,25 +22,29 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Create AVD and start emulator
+      - name: Install system image and create AVD
         run: |
-          echo "y" | sdkmanager --install "system-images;android-34;google_apis;x86_64"
-          echo "no" | avdmanager create avd -n test_avd -k "system-images;android-34;google_apis;x86_64" --device "pixel"
-          $ANDROID_HOME/emulator/emulator -avd test_avd -no-window -no-audio -gpu swiftshader_indirect -no-snapshot &
+          sdkmanager --install "platform-tools" "emulator" "platforms;android-34" "system-images;android-34;google_apis;x86_64"
 
-          # Wait for emulator to start
-          adb start-server
-          adb devices
+          echo "no" | avdmanager create avd -n API_34 -k "system-images;android-34;google_apis;x86_64" --device "pixel"
 
-          # Retry loop until boot completes
+      - name: Start emulator
+        run: |
+          $ANDROID_HOME/emulator/emulator -avd API_34 -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot &
+          sleep 5
+
+          # Wait for device to appear in adb
+          adb wait-for-device
+
+          # Check boot status
           boot_completed=""
           max_attempts=30
           attempt=1
           while [[ "$boot_completed" != "1" && $attempt -le $max_attempts ]]; do
             echo "Waiting for emulator to boot... attempt $attempt"
-            sleep 10
+            boot_completed=$(adb shell getprop sys.boot_completed | tr -d '\r')
             adb devices
-            boot_completed=$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+            sleep 10
             ((attempt++))
           done
 
@@ -48,8 +52,8 @@ jobs:
             echo "Emulator failed to start properly"
             exit 1
           fi
-          
-          echo "Emulator booted successfully"
 
-      - name: Run Tests
+          echo "Emulator booted"
+
+      - name: Run tests
         run: mvn clean test
