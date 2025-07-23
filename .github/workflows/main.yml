@@ -2,45 +2,48 @@ name: android-tests
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
   android-tests:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v3
 
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: 17
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
 
-    - name: Install Emulator and System Images
-      run: |
-        echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --install "system-images;android-34;google_apis;x86_64"
+      - name: Download and Set Up Android SDK
+        uses: android-actions/setup-android@v3
 
-    - name: Create AVD
-      run: |
-        echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n API_34 -k "system-images;android-34;google_apis;x86_64" --device "pixel"
+      - name: Install Emulator and System Images
+        run: |
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "platform-tools" "emulator" "platforms;android-34" "system-images;android-34;google_apis;x86_64"
 
-    - name: Start Emulator
-      run: |
-        nohup $ANDROID_HOME/emulator/emulator -avd API_34 -no-window -no-audio -no-snapshot > /dev/null 2>&1 &
+      - name: Create AVD
+        run: |
+          echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n API_34 -k "system-images;android-34;google_apis;x86_64" --device "pixel"
 
-    - name: Wait for Emulator to Boot
-      run: |
-        adb wait-for-device
-        boot_completed=""
-        until [[ "$boot_completed" == "1" ]]; do
-          boot_completed=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
-          echo "Waiting for emulator to boot..."
-          sleep 5
-        done
-        echo "Emulator booted successfully!"
+      - name: Start Emulator
+        run: |
+          nohup $ANDROID_HOME/emulator/emulator -avd API_34 -no-window -no-audio -no-snapshot > /dev/null 2>&1 &
 
-    - name: Run Tests
-      run: mvn clean test
+      - name: Wait for Emulator to Boot
+        run: |
+          $ANDROID_HOME/platform-tools/adb wait-for-device
+          boot_completed=""
+          until [[ "$boot_completed" == "1" ]]; do
+            boot_completed=$($ANDROID_HOME/platform-tools/adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+            echo "Waiting for emulator to boot..."
+            sleep 5
+          done
+          echo "Emulator booted successfully!"
+
+      - name: Run Tests
+        run: mvn clean test
