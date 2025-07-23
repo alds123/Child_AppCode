@@ -13,6 +13,7 @@ jobs:
     env:
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
       ANDROID_HOME: /usr/local/lib/android/sdk
+      HOME: /home/runner  # ensures AVD is created where expected
 
     steps:
       - name: 📦 Checkout repository
@@ -24,23 +25,27 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: 📥 Install required Android SDK components
+      - name: 📥 Install required Android system image
         run: |
           echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-            "platform-tools" \
-            "platforms;android-34" \
-            "emulator" \
-            "system-images;android-34;google_apis;x86_64"
+            "platform-tools" "platforms;android-34" "emulator" \
+            "system-images;android-34;google_apis;arm64-v8a"
 
       - name: 📱 Create AVD
         run: |
           echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager \
-            create avd -n test -k "system-images;android-34;google_apis;x86_64" --device "pixel"
+            create avd -n test -k "system-images;android-34;google_apis;arm64-v8a" \
+            --device "pixel"
 
-      - name: 🚀 Start Emulator
+      - name: 🔍 Verify AVD
         run: |
-          export PATH=$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$PATH
-          nohup emulator -avd test -no-audio -no-window -gpu swiftshader_indirect &
+          ls $HOME/.android/avd
+          $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager list avd
+
+      - name: 🚀 Start emulator
+        run: |
+          export PATH=$ANDROID_HOME/emulator:$PATH
+          nohup emulator -avd test -no-audio -no-window -gpu off &
           adb wait-for-device
           boot_completed=""
           until [[ "$boot_completed" == "1" ]]; do
@@ -50,5 +55,5 @@ jobs:
           done
           echo "✅ Emulator booted"
 
-      - name: 🧪 Run Tests
+      - name: 🧪 Run Appium Tests
         run: mvn clean test
