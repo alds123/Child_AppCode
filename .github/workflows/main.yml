@@ -7,12 +7,13 @@ on:
     branches: [main]
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  android-test:
+    runs-on: self-hosted  # ⚠️ Replace with 'macos-latest' if you're using GitHub-hosted macOS
 
     env:
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
       ANDROID_HOME: /usr/local/lib/android/sdk
+      AVD_NAME: test
 
     steps:
       - name: 📦 Checkout repository
@@ -24,23 +25,36 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: 📥 Install system image and tools
+      - name: 📥 Install required SDK components
         run: |
-          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-            "platform-tools" "platforms;android-34" "emulator" \
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            "platform-tools" \
+            "platforms;android-34" \
+            "emulator" \
             "system-images;android-34;google_apis;arm64-v8a"
 
-      - name: 📱 Create AVD
+      - name: 🛠️ Create AVD
         run: |
-          echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager \
-            create avd -n test -k "system-images;android-34;google_apis;arm64-v8a" \
+          mkdir -p $HOME/.android/avd
+          echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd \
+            -n $AVD_NAME \
+            -k "system-images;android-34;google_apis;arm64-v8a" \
             --device "pixel"
 
-      - name: 🔍 Verify AVD
+      - name: 🚀 Start emulator
         run: |
-          ls $HOME/.android/avd
-          $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager list avd
+          export PATH=$ANDROID_HOME/emulator:$PATH
+          export PATH=$ANDROID_HOME/platform-tools:$PATH
+          nohup emulator -avd $AVD_NAME -no-audio -no-window -gpu off &
+          adb wait-for-device
+          boot_completed=""
+          until [[ "$boot_completed" == "1" ]]; do
+            boot_completed=$(adb shell getprop sys.boot_completed | tr -d '\r')
+            echo "Waiting for emulator to boot..."
+            sleep 5
+          done
+          echo "✅ Emulator booted"
 
-      - name: 🚀 Start Emulator
-        run: |
-          export PATH=$ANDROID_HOME/emulator:$ANDROID_HOME/platform-
+      - name: 🧪 Run Appium Tests
+        run: mvn clean test
