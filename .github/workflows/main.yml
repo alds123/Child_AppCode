@@ -1,14 +1,12 @@
-name: Run Appium Tests on Android Emulator
+name: Run Android Emulator and Tests
 
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
 
 jobs:
-  android-test:
-    runs-on: self-hosted  # ⚠️ Replace with 'macos-latest' if you're using GitHub-hosted macOS
+  test:
+    runs-on: ubuntu-latest
 
     env:
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
@@ -25,36 +23,34 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: 📥 Install required SDK components
+      - name: 📥 Install SDK components
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
             "platform-tools" \
             "platforms;android-34" \
             "emulator" \
-            "system-images;android-34;google_apis;arm64-v8a"
+            "system-images;android-34;google_apis;x86_64"
 
       - name: 🛠️ Create AVD
         run: |
-          mkdir -p $HOME/.android/avd
           echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd \
-            -n $AVD_NAME \
-            -k "system-images;android-34;google_apis;arm64-v8a" \
+            -n $AVD_NAME -k "system-images;android-34;google_apis;x86_64" \
             --device "pixel"
 
-      - name: 🚀 Start emulator
+      - name: 🚀 Start Emulator
         run: |
-          export PATH=$ANDROID_HOME/emulator:$PATH
-          export PATH=$ANDROID_HOME/platform-tools:$PATH
-          nohup emulator -avd $AVD_NAME -no-audio -no-window -gpu off &
+          export PATH=$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$PATH
+          nohup emulator -avd $AVD_NAME -no-window -no-audio -gpu swiftshader_indirect &
+          echo "Waiting for emulator to start..."
           adb wait-for-device
           boot_completed=""
           until [[ "$boot_completed" == "1" ]]; do
             boot_completed=$(adb shell getprop sys.boot_completed | tr -d '\r')
-            echo "Waiting for emulator to boot..."
+            echo "Still waiting..."
             sleep 5
           done
           echo "✅ Emulator booted"
 
-      - name: 🧪 Run Appium Tests
+      - name: 🧪 Run Tests
         run: mvn clean test
