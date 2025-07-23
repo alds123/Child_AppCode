@@ -19,23 +19,31 @@ jobs:
           distribution: 'temurin'
           java-version: 17
 
-      - name: Download Android SDK components
+      - name: Accept Licenses and Install Android SDK
         run: |
-          yes | sudo ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --licenses
-          sudo ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager \
+          yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --licenses
+          ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager \
             "platform-tools" \
             "emulator" \
             "platforms;android-34" \
             "system-images;android-34;google_apis;x86_64"
+          echo "✅ SDK components installed"
+
+      - name: Wait to Ensure SDK Fully Installed
+        run: |
+          echo "Waiting 20s to ensure SDK is fully installed..."
+          sleep 20
 
       - name: Create AVD
         run: |
+          echo "Creating AVD..."
           echo "no" | ${ANDROID_HOME}/cmdline-tools/latest/bin/avdmanager create avd \
             -n API_34 -k "system-images;android-34;google_apis;x86_64" --device "pixel"
+          echo "✅ AVD created"
 
       - name: Start Emulator in Background
         run: |
-          nohup $ANDROID_HOME/emulator/emulator -avd API_34 -no-audio -no-boot-anim -no-window -gpu swiftshader_indirect > emulator.log 2>&1 &
+          nohup $ANDROID_HOME/emulator/emulator -avd API_34 -no-audio -no-window -gpu swiftshader_indirect > emulator.log 2>&1 &
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
 
