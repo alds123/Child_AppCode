@@ -1,16 +1,16 @@
-name: Android Emulator Tests
+name: Android Emulator CI
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
-  test:
+  run-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
@@ -22,38 +22,39 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install system image and create AVD
+      - name: Accept licenses
+        run: yes | sdkmanager --licenses
+
+      - name: Install Emulator & System Image
         run: |
-          sdkmanager --install "platform-tools" "emulator" "platforms;android-34" "system-images;android-34;google_apis;x86_64"
+          sdkmanager "platform-tools" "emulator" "platforms;android-34" "system-images;android-34;google_apis;x86_64"
 
-          echo "no" | avdmanager create avd -n API_34 -k "system-images;android-34;google_apis;x86_64" --device "pixel"
-
-      - name: Start emulator
+      - name: Create AVD
         run: |
-          $ANDROID_HOME/emulator/emulator -avd API_34 -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot &
-          sleep 5
+          echo "Creating AVD..."
+          echo "no" | avdmanager create avd -n test_avd -k "system-images;android-34;google_apis;x86_64" --device "pixel"
+        env:
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_HOME }}
 
-          # Wait for device to appear in adb
-          adb wait-for-device
-
-          # Check boot status
+      - name: Start Emulator
+        run: |
+          echo "Starting emulator..."
+          $ANDROID_HOME/emulator/emulator -avd test_avd -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot &
+          echo "Waiting for emulator to boot..."
           boot_completed=""
           max_attempts=30
           attempt=1
           while [[ "$boot_completed" != "1" && $attempt -le $max_attempts ]]; do
-            echo "Waiting for emulator to boot... attempt $attempt"
-            boot_completed=$(adb shell getprop sys.boot_completed | tr -d '\r')
-            adb devices
             sleep 10
+            boot_completed=$(adb -e shell getprop sys.boot_completed | tr -d '\r')
+            echo "Attempt $attempt: boot_completed=$boot_completed"
             ((attempt++))
           done
-
           if [[ "$boot_completed" != "1" ]]; then
-            echo "Emulator failed to start properly"
+            echo "Emulator failed to boot"
             exit 1
           fi
+          echo "Emulator is ready"
 
-          echo "Emulator booted"
-
-      - name: Run tests
+      - name: Run Tests
         run: mvn clean test
