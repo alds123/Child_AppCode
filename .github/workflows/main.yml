@@ -17,7 +17,6 @@ jobs:
       ARCH: x86_64
       EMULATOR_PROFILE: pixel
       ANDROID_HOME: /usr/local/lib/android/sdk
-      JAVA_HOME: /opt/hostedtoolcache/Java_Zulu_jdk/17.0.16-8/x64
 
     steps:
       - name: Checkout code
@@ -29,10 +28,10 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Set up Android SDK licenses
+      - name: Accept licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
 
-      - name: Create AVD and start emulator
+      - name: Start Android Emulator
         uses: ReactiveCircus/android-emulator-runner@v2
         with:
           api-level: 34
@@ -41,4 +40,28 @@ jobs:
           profile: pixel
           emulator-options: -no-window -no-audio -gpu off
           disable-animations: true
-          script: mvn clean test
+          script: |
+            echo "Restarting ADB to fix possible device offline..."
+            adb kill-server
+            adb start-server
+
+            echo "Waiting for emulator to be online..."
+            booted="0"
+            for i in {1..15}; do
+              status=$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+              if [[ "$status" == "1" ]]; then
+                booted="1"
+                echo "Emulator booted successfully."
+                break
+              fi
+              echo "Waiting for emulator... ($i)"
+              sleep 10
+            done
+
+            if [[ "$booted" == "0" ]]; then
+              echo "Emulator failed to boot in time."
+              exit 1
+            fi
+
+            echo "Running tests..."
+            mvn clean test
