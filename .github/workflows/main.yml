@@ -13,7 +13,6 @@ jobs:
     env:
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
       ANDROID_HOME: /usr/local/lib/android/sdk
-      HOME: /home/runner  # ensures AVD is created where expected
 
     steps:
       - name: 📦 Checkout repository
@@ -25,7 +24,7 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: 📥 Install required Android system image
+      - name: 📥 Install system image and tools
         run: |
           echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
             "platform-tools" "platforms;android-34" "emulator" \
@@ -42,18 +41,6 @@ jobs:
           ls $HOME/.android/avd
           $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager list avd
 
-      - name: 🚀 Start emulator
+      - name: 🚀 Start Emulator
         run: |
-          export PATH=$ANDROID_HOME/emulator:$PATH
-          nohup emulator -avd test -no-audio -no-window -gpu off &
-          adb wait-for-device
-          boot_completed=""
-          until [[ "$boot_completed" == "1" ]]; do
-            boot_completed=$(adb shell getprop sys.boot_completed | tr -d '\r')
-            echo "Waiting for emulator to boot..."
-            sleep 5
-          done
-          echo "✅ Emulator booted"
-
-      - name: 🧪 Run Appium Tests
-        run: mvn clean test
+          export PATH=$ANDROID_HOME/emulator:$ANDROID_HOME/platform-
