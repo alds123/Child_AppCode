@@ -43,7 +43,7 @@ jobs:
 
       - name: Start Emulator in Background
         run: |
-          nohup $ANDROID_HOME/emulator/emulator -avd API_34 -no-audio -no-window -gpu swiftshader_indirect > emulator.log 2>&1 &
+          nohup $ANDROID_HOME/emulator/emulator -avd API_34 -no-audio -no-window -gpu swiftshader_indirect -no-snapshot-save > emulator.log 2>&1 &
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
 
@@ -51,7 +51,7 @@ jobs:
         run: |
           $ANDROID_HOME/platform-tools/adb wait-for-device
           boot_completed=""
-          timeout=180
+          timeout=300
           elapsed=0
           while [[ "$boot_completed" != "1" && "$elapsed" -lt "$timeout" ]]; do
             boot_completed=$($ANDROID_HOME/platform-tools/adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
@@ -61,15 +61,22 @@ jobs:
           done
           if [[ "$boot_completed" != "1" ]]; then
             echo "❌ Emulator failed to boot in $timeout seconds"
+            cat emulator.log || echo "⚠️ No emulator log available"
             exit 1
           fi
           echo "✅ Emulator booted successfully!"
-
-          echo "⌛ Waiting 30 more seconds to ensure UI is ready..."
+          echo "⏳ Waiting 30 more seconds to ensure UI is ready..."
           sleep 30
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
 
-          echo "📱 Connected ADB Devices:"
-          $ANDROID_HOME/platform-tools/adb devices
+      - name: Show Emulator Logs
+        run: |
+          echo "📄 Emulator Logs:"
+          cat emulator.log || echo "⚠️ No emulator logs available"
+
+      - name: Connected ADB Devices
+        run: $ANDROID_HOME/platform-tools/adb devices
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
 
