@@ -1,4 +1,4 @@
-name: 🤖 Run Android Tests on Emulator
+name: Run Appium Tests on Android Emulator
 
 on:
   push:
@@ -10,46 +10,45 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    env:
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+      ANDROID_HOME: /usr/local/lib/android/sdk
+
     steps:
-      - name: 📥 Checkout code
+      - name: 📦 Checkout repository
         uses: actions/checkout@v4
 
       - name: ☕ Set up Java 17
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: 📦 Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: 📦 Install system image & platform tools
+      - name: 📥 Install required Android SDK components
         run: |
-          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "platform-tools" "emulator" "system-images;android-34;google_apis;arm64-v8a"
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            "platform-tools" \
+            "platforms;android-34" \
+            "emulator" \
+            "system-images;android-34;google_apis;x86_64"
 
-      - name: 🤖 Create AVD
+      - name: 📱 Create AVD
         run: |
-          echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n test -k "system-images;android-34;google_apis;arm64-v8a" --device "pixel"
-        env:
-          ANDROID_AVD_HOME: $HOME/.android/avd
+          echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager \
+            create avd -n test -k "system-images;android-34;google_apis;x86_64" --device "pixel"
 
-      - name: 🚀 Start emulator
+      - name: 🚀 Start Emulator
         run: |
           export PATH=$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$PATH
-          export ANDROID_AVD_HOME=$HOME/.android/avd
-
-          nohup emulator -avd test -no-window -no-audio -gpu off -accel off &
-
-          echo "Waiting for emulator..."
-          $ANDROID_HOME/platform-tools/adb wait-for-device
-
+          nohup emulator -avd test -no-audio -no-window -gpu swiftshader_indirect &
+          adb wait-for-device
           boot_completed=""
           until [[ "$boot_completed" == "1" ]]; do
-            boot_completed=$($ANDROID_HOME/platform-tools/adb shell getprop sys.boot_completed | tr -d '\r')
-            echo "⏳ Waiting for emulator to boot..."
+            boot_completed=$(adb shell getprop sys.boot_completed | tr -d '\r')
+            echo "Waiting for emulator to boot..."
             sleep 5
           done
           echo "✅ Emulator booted"
 
-      - name: 🧪 Run Tests with Maven
+      - name: 🧪 Run Tests
         run: mvn clean test
