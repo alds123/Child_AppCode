@@ -27,6 +27,7 @@ jobs:
         run: |
           sdkmanager --install "system-images;android-34;google_apis;x86_64"
           sdkmanager --install "emulator"
+          sdkmanager --licenses
 
       - name: Create AVD
         run: |
@@ -35,21 +36,26 @@ jobs:
           echo "no" | avdmanager create avd -n test_emulator -k "system-images;android-34;google_apis;x86_64" --device "pixel" --force
 
       - name: List AVDs
-        run: |
-          avdmanager list avd
+        run: avdmanager list avd
 
       - name: Start Emulator and Run Tests
         run: |
           echo "Starting emulator..."
-          nohup emulator -avd test_emulator -no-window -no-audio -no-boot-anim &
+          nohup $ANDROID_HOME/emulator/emulator -avd test_emulator -no-window -no-audio -no-boot-anim &
           adb wait-for-device
+          
           boot_completed=""
           until [[ "$boot_completed" == "1" ]]; do
             boot_completed=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
             echo "Waiting for emulator to boot..."
             sleep 5
           done
+          
           echo "Emulator booted."
+          echo "Disabling animations..."
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
 
-          # Run your tests here
+          echo "Running tests..."
           mvn clean test
