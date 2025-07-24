@@ -5,10 +5,13 @@ on:
     branches:
       - main
   pull_request:
+    branches:
+      - main
 
 jobs:
   test:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
@@ -19,35 +22,43 @@ jobs:
           distribution: 'temurin'
           java-version: 17
 
-      - name: Download Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v2
 
-      - name: Install AVD and system image
-        run: |
-          echo "y" | sdkmanager "platform-tools" "platforms;android-34" "system-images;android-34;google_apis;x86_64"
-          echo "no" | avdmanager create avd -n test_emulator -k "system-images;android-34;google_apis;x86_64" --device "pixel"
+      - name: Create AVD
+        run: echo "no" | avdmanager create avd -n test_emulator -k "system-images;android-34;google_apis;x86_64" --device "pixel"
 
       - name: Start Emulator and Run Tests
+        shell: /usr/bin/bash -e {0}
         env:
-          ANDROID_AVD_HOME: $HOME/.android/avd
-          AVD_NAME: test_emulator
           JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.*/x64
+          JAVA_HOME_17_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.16-8/x64
           ANDROID_HOME: /usr/local/lib/android/sdk
           ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+          ANDROID_AVD_HOME: $HOME/.android/avd
+          AVD_NAME: test_emulator
         run: |
           echo "Starting emulator..."
-          nohup emulator -avd $AVD_NAME -no-snapshot -no-audio -no-window -gpu swiftshader_indirect > /dev/null 2>&1 &
+          nohup emulator -avd $AVD_NAME -no-window -no-audio -no-boot-anim -no-snapshot-load -no-snapshot-save > /dev/null 2>&1 &
 
           echo "Waiting for emulator to be ready..."
           adb wait-for-device
 
+          timeout=180
+          elapsed=0
           boot_completed=""
-          until [[ "$boot_completed" == "1" ]]; do
+          until [[ "$boot_completed" == "1" || "$elapsed" -ge "$timeout" ]]; do
             boot_completed=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
-            echo "Waiting for emulator to boot..."
+            echo "Waiting for emulator to boot... (${elapsed}s)"
             sleep 5
+            elapsed=$((elapsed+5))
           done
 
-          echo "Emulator booted."
+          if [[ "$boot_completed" != "1" ]]; then
+            echo "❌ Emulator failed to boot within $timeout seconds."
+            exit 1
+          fi
+
+          echo "✅ Emulator booted successfully."
           echo "Running tests..."
           mvn clean test
