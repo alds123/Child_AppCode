@@ -1,4 +1,4 @@
-name: Android Emulator CI
+name: Android Emulator CI (ARM64 Fix)
 
 on:
   push:
@@ -27,23 +27,23 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Emulator and System Image
+      - name: Install Emulator and ARM64 System Image
         run: |
-          sdkmanager --install "platform-tools" "emulator" "system-images;android-34;google_apis;x86_64"
+          sdkmanager --install "platform-tools" "emulator" "system-images;android-34;google_apis;arm64-v8a"
           yes | sdkmanager --licenses
 
       - name: Create AVD
         run: |
           echo "Creating AVD..."
           mkdir -p $ANDROID_AVD_HOME
-          echo "no" | avdmanager create avd -n $AVD_NAME -k "system-images;android-34;google_apis;x86_64" --device "pixel" --force
+          echo "no" | avdmanager create avd -n $AVD_NAME -k "system-images;android-34;google_apis;arm64-v8a" --device "pixel" --force
           echo "AVD Created:"
           avdmanager list avd
 
       - name: Start Emulator and Run Tests
         run: |
           echo "Starting emulator..."
-          nohup $ANDROID_HOME/emulator/emulator -avd $AVD_NAME -no-audio -no-window -no-boot-anim &
+          nohup $ANDROID_HOME/emulator/emulator -avd $AVD_NAME -no-audio -no-window -no-boot-anim -no-snapshot-save &
 
           echo "Waiting for emulator to be ready..."
           adb wait-for-device
@@ -56,10 +56,5 @@ jobs:
           done
 
           echo "Emulator booted."
-          echo "Disabling animations..."
-          adb shell settings put global window_animation_scale 0
-          adb shell settings put global transition_animation_scale 0
-          adb shell settings put global animator_duration_scale 0
-
           echo "Running tests..."
           mvn clean test
