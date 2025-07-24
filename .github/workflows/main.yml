@@ -1,59 +1,65 @@
-name: Android Emulator CI
+name: Run Mobile Automation Tests on Emulator
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   pull_request:
+    branches: [ main ]
 
 jobs:
-  test:
+  android-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     env:
-      JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.16-8/x64
-      JAVA_HOME_17_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.16-8/x64
+      AVD_NAME: test_emulator
+      API_LEVEL: 34
+      TARGET: google_apis
+      ARCH: x86_64
+      EMULATOR_DEVICE: pixel
       ANDROID_HOME: /usr/local/lib/android/sdk
       ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-      AVD_NAME: test_emulator
-      HOME: /home/runner
+      PATH: /usr/local/lib/android/sdk/cmdline-tools/latest/bin:/usr/local/lib/android/sdk/platform-tools:$PATH
 
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Java 17
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: 17
+          java-version: '17'
 
       - name: Download Android SDK components
         run: |
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "platform-tools" "platforms;android-34" "system-images;android-34;google_apis;x86_64" "emulator"
-        env:
-          PATH: $ANDROID_HOME/cmdline-tools/latest/bin:$PATH
+          echo "y" | sdkmanager --install "platform-tools" "platforms;android-34" "system-images;android-34;google_apis;x86_64" "emulator"
+          sdkmanager --licenses
 
       - name: Create AVD
         run: |
-          echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n $AVD_NAME -k "system-images;android-34;google_apis;x86_64" --device "pixel"
-        env:
-          PATH: $ANDROID_HOME/cmdline-tools/latest/bin:$PATH
+          echo "no" | avdmanager create avd -n $AVD_NAME -k "system-images;android-34;google_apis;x86_64" --device "$EMULATOR_DEVICE"
 
-      - name: Start Emulator
+      - name: Start Emulator and Wait for Boot
         run: |
-          $ANDROID_HOME/emulator/emulator -avd $AVD_NAME -no-audio -no-window -no-snapshot -no-boot-anim &
+          $ANDROID_HOME/emulator/emulator -avd $AVD_NAME -no-audio -no-window -no-snapshot &
           adb wait-for-device
+
           boot_completed=""
           until [[ "$boot_completed" == "1" ]]; do
             boot_completed=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
             echo "Waiting for emulator to boot..."
             sleep 5
           done
-          echo "Emulator booted successfully."
-        env:
-          PATH: $ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$PATH
 
-      - name: Run Tests
+          echo "Emulator booted successfully."
+
+      - name: Run Tests with Maven
         run: mvn clean test
+
+      - name: Upload Test Results (Optional)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: target/surefire-reports
