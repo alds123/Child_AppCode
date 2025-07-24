@@ -30,25 +30,9 @@ jobs:
 
       - name: Create AVD
         run: |
-          echo "no" | avdmanager create avd -n test_emulator -k "system-images;android-34;google_apis;x86_64" --device "pixel"
+          echo "Creating AVD..."
+          mkdir -p $HOME/.android/avd
+          echo "no" | avdmanager create avd -n test_emulator -k "system-images;android-34;google_apis;x86_64" --device "pixel" --force
 
       - name: List AVDs
         run: |
-          echo "Listing available AVDs:"
-          $ANDROID_HOME/emulator/emulator -list-avds
-
-      - name: Start Emulator
-        run: |
-          nohup $ANDROID_HOME/emulator/emulator -avd test_emulator -no-audio -no-window -no-boot-anim &
-          $ANDROID_HOME/platform-tools/adb wait-for-device
-          adb shell settings put global window_animation_scale 0
-          adb shell settings put global transition_animation_scale 0
-          adb shell settings put global animator_duration_scale 0
-
-      - name: Wait for Emulator to Boot
-        run: |
-          boot_completed=""
-          until [[ "$boot_completed" == "1" ]]; do
-            sleep 5
-            boot_completed=$(adb shell getprop sys.boot_completed | tr -d '\r')
-            echo "Waiting for emulator... (boot_completed=$boot_completed)"
