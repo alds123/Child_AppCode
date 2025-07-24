@@ -10,6 +10,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    env:
+      ANDROID_AVD_HOME: $HOME/.android/avd
+      AVD_NAME: test_emulator
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -25,32 +29,32 @@ jobs:
 
       - name: Install Emulator and System Image
         run: |
-          sdkmanager --install "system-images;android-34;google_apis;x86_64"
-          sdkmanager --install "emulator"
-          sdkmanager --licenses
+          sdkmanager --install "platform-tools" "emulator" "system-images;android-34;google_apis;x86_64"
+          yes | sdkmanager --licenses
 
       - name: Create AVD
         run: |
           echo "Creating AVD..."
-          mkdir -p $HOME/.android/avd
-          echo "no" | avdmanager create avd -n test_emulator -k "system-images;android-34;google_apis;x86_64" --device "pixel" --force
-
-      - name: List AVDs
-        run: avdmanager list avd
+          mkdir -p $ANDROID_AVD_HOME
+          echo "no" | avdmanager create avd -n $AVD_NAME -k "system-images;android-34;google_apis;x86_64" --device "pixel" --force
+          echo "AVD Created:"
+          avdmanager list avd
 
       - name: Start Emulator and Run Tests
         run: |
           echo "Starting emulator..."
-          nohup $ANDROID_HOME/emulator/emulator -avd test_emulator -no-window -no-audio -no-boot-anim &
+          nohup $ANDROID_HOME/emulator/emulator -avd $AVD_NAME -no-audio -no-window -no-boot-anim &
+
+          echo "Waiting for emulator to be ready..."
           adb wait-for-device
-          
+
           boot_completed=""
           until [[ "$boot_completed" == "1" ]]; do
             boot_completed=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
             echo "Waiting for emulator to boot..."
             sleep 5
           done
-          
+
           echo "Emulator booted."
           echo "Disabling animations..."
           adb shell settings put global window_animation_scale 0
