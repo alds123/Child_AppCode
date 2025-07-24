@@ -25,14 +25,4 @@ jobs:
 
       - name: Install Emulator and System Image
         run: |
-          sdkmanager --install "system-images;android-34;google_apis;x86_64"
-          sdkmanager --install "emulator"
-
-      - name: Create AVD
-        run: |
-          echo "Creating AVD..."
-          mkdir -p $HOME/.android/avd
-          echo "no" | avdmanager create avd -n test_emulator -k "system-images;android-34;google_apis;x86_64" --device "pixel" --force
-
-      - name: List AVDs
-        run: |
+          s
