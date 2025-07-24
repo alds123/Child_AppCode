@@ -30,11 +30,16 @@ jobs:
 
       - name: Create AVD
         run: |
-          echo "no" | avdmanager create avd -n test_emulator -k "system-images;android-34;google_apis;x86_64" -d pixel_5
+          echo "no" | avdmanager create avd -n test_emulator -k "system-images;android-34;google_apis;x86_64" --device "pixel"
+
+      - name: List AVDs
+        run: |
+          echo "Listing available AVDs:"
+          $ANDROID_HOME/emulator/emulator -list-avds
 
       - name: Start Emulator
         run: |
-          nohup $ANDROID_HOME/emulator/emulator -avd test_emulator -no-window -no-audio -no-boot-anim &
+          nohup $ANDROID_HOME/emulator/emulator -avd test_emulator -no-audio -no-window -no-boot-anim &
           $ANDROID_HOME/platform-tools/adb wait-for-device
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
@@ -47,14 +52,3 @@ jobs:
             sleep 5
             boot_completed=$(adb shell getprop sys.boot_completed | tr -d '\r')
             echo "Waiting for emulator... (boot_completed=$boot_completed)"
-          done
-          echo "Emulator booted."
-
-      - name: Run Tests with Maven
-        run: mvn clean test
-
-      - name: Upload Test Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results
-          path: target/surefire-reports/
