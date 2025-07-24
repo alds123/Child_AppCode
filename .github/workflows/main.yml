@@ -1,14 +1,14 @@
-name: Android Emulator CI
+name: Android Emulator Tests
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   pull_request:
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
 
     steps:
       - name: Checkout code
@@ -17,46 +17,36 @@ jobs:
       - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
-          distribution: temurin
+          distribution: 'temurin'
           java-version: 17
 
-      - name: Set up Android SDK
+      - name: Download Android SDK tools
         uses: android-actions/setup-android@v3
 
-      - name: Install Android system image
-        run: |
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "system-images;android-34;google_apis;x86_64"
+      - name: Accept licenses
+        run: yes | sdkmanager --licenses
 
-      - name: Create AVD directory (manual fix)
-        run: |
-          mkdir -p ~/.android/avd
-          echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd \
-            -n API_36 \
-            -k "system-images;android-34;google_apis;x86_64" \
-            --device "pixel"
-          sleep 5
-          echo "hw.gpu.enabled=no" >> ~/.android/avd/API_36.avd/config.ini || echo "Could not write to config.ini"
+      - name: Install system image for emulator
+        run: sdkmanager "system-images;android-36;google_apis;x86_64"
 
-      - name: Start emulator
+      - name: Create AVD
+        run: echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n API_36 -k "system-images;android-36;google_apis;x86_64" --device "pixel"
+
+      - name: Start AVD
         run: |
           nohup $ANDROID_HOME/emulator/emulator -avd API_36 -no-audio -no-window -gpu off &
-          adb wait-for-device
+          sleep 5
 
-      - name: Wait for emulator to fully boot
-        timeout-minutes: 15
+      - name: Wait for emulator to boot
         run: |
+          $ANDROID_HOME/platform-tools/adb wait-for-device
           boot_completed=""
-          retries=0
-          until [[ "$boot_completed" == "1" || $retries -gt 30 ]]; do
-            sleep 20
-            boot_completed=$(adb -e shell getprop sys.boot_completed | tr -d '\r')
-            echo "Boot completed: $boot_completed"
-            ((retries++))
+          until [[ "$boot_completed" == "1" ]]; do
+            boot_completed=$($ANDROID_HOME/platform-tools/adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
+            echo "Waiting for emulator to boot..."
+            sleep 10
           done
-          if [[ "$boot_completed" != "1" ]]; then
-            echo "Emulator failed to boot in time."
-            exit 1
-          fi
+          echo "Emulator booted"
 
-      - name: Run tests
+      - name: Run Tests
         run: mvn clean test
