@@ -1,4 +1,4 @@
-name: Run Android JUnit Tests
+name: Run Android TestNG Tests
 
 on:
   push:
@@ -11,7 +11,7 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      - name: Checkout Code
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Java 17
@@ -20,15 +20,26 @@ jobs:
           distribution: 'temurin'
           java-version: 17
 
-      - name: Download Android SDK & Tools
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Start Android Emulator and Run Tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
           target: google_apis
           arch: x86_64
           profile: Nexus 6
-          emulator-options: "-no-window -no-audio"
+          emulator-options: "-no-window -no-audio -no-boot-anim"
+          disable-animations: true
           script: |
+            echo "✅ Emulator booted"
             adb devices
-            adb install your-app-debug.apk
+
+            echo "📦 Installing Appium"
+            npm install -g appium
+            appium --base-path /wd/hub --log-level info &
+            sleep 20
+
+            echo "🚀 Running Maven TestNG Tests"
             mvn clean test
