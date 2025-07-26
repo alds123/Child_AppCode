@@ -1,4 +1,4 @@
-name: Android Emulator TestNG CI
+name: Android Emulator CI with TestNG
 
 on:
   push:
@@ -7,12 +7,11 @@ on:
     branches: [ main ]
 
 jobs:
-  test:
-    name: Run Tests on Android Emulator
-    runs-on: macos-14  # Apple Silicon runner
+  android-test:
+    runs-on: macos-14  # M1-based runner required for ARM
 
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Set up Java 17
@@ -24,13 +23,13 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Run emulator and execute tests
+      - name: Run Emulator and Execute Tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
           target: google_apis
-          arch: arm64-v8a  # Required on macOS-14
+          arch: arm64-v8a   # Must use for macos-14
           profile: pixel_5
-          emulator-options: -no-window -no-audio -no-snapshot
+          emulator-options: -no-snapshot -no-audio -no-window
           disable-animations: true
           script: mvn clean test
