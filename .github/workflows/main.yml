@@ -1,52 +1,56 @@
-name: Android Emulator CI
+name: Android CI with Emulator (TestNG)
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
+    branches: [main]
 
 jobs:
   test:
-    runs-on: macos-14
-
-    env:
-      ANDROID_HOME: /Users/runner/Library/Android/sdk
-      ANDROID_SDK_ROOT: /Users/runner/Library/Android/sdk
+    runs-on: macos-latest
+    timeout-minutes: 15
 
     steps:
-      - name: 📥 Checkout Code
+      - name: 📦 Checkout Code
         uses: actions/checkout@v4
 
       - name: ☕ Set up Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 📦 Set up Android SDK
+      - name: 🛠️ Set up Android SDK
         uses: android-actions/setup-android@v3
 
       - name: 📱 Create Android Emulator
         run: |
-          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "system-images;android-34;google_apis;arm64-v8a"
-          echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n test_emulator -k "system-images;android-34;google_apis;arm64-v8a" -d pixel_3a
+          echo "no" | avdmanager create avd -n test_emulator -k "system-images;android-34;google_apis;x86_64" --force
 
       - name: 🚀 Start Emulator in Background
         run: |
-          nohup $ANDROID_HOME/emulator/emulator -avd test_emulator -no-snapshot -no-audio -gpu swiftshader_indirect -delay-adb > /dev/null 2>&1 &
+          nohup $ANDROID_HOME/emulator/emulator -avd test_emulator -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -delay-adb > /dev/null 2>&1 &
 
       - name: ⏳ Wait for Emulator to Boot
         run: |
           echo "Waiting for emulator to start..."
           $ANDROID_HOME/platform-tools/adb wait-for-device
           boot_completed=""
-          until [[ "$boot_completed" == "1" ]]; do
+          boot_timeout=0
+          while [[ "$boot_completed" != "1" && $boot_timeout -lt 60 ]]; do
             sleep 5
+            boot_timeout=$((boot_timeout + 1))
             boot_completed=$($ANDROID_HOME/platform-tools/adb shell getprop sys.boot_completed | tr -d '\r')
-            echo "Boot completed: $boot_completed"
+            echo "Boot check #$boot_timeout => $boot_completed"
           done
-          echo "✅ Emulator booted"
+
+          if [[ "$boot_completed" != "1" ]]; then
+            echo "❌ Emulator boot timeout after 5 minutes!"
+            exit 1
+          else
+            echo "✅ Emulator booted successfully"
+          fi
 
       - name: 🧪 Run Tests with Maven (TestNG)
         run: mvn clean test
