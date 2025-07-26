@@ -1,41 +1,41 @@
-name: CI/CD Mobile Automation
+name: Android Emulator CI (TestNG)
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
+    branches: [main]
 
 jobs:
   test:
     runs-on: macos-latest
 
     steps:
-      - name: 📥 Checkout Code
+      - name: ⬇️ Checkout Code
         uses: actions/checkout@v4
 
-      - name: ☕ Set up Java 17
+      - name: 📦 Set up Java 17
         uses: actions/setup-java@v3
         with:
           distribution: 'temurin'
           java-version: 17
 
-      - name: 📲 Set up Android SDK
-        uses: android-actions/setup-android@v2
+      - name: 📲 Download Android SDK Tools
+        uses: android-actions/setup-android@v3
 
-      - name: 📦 Install ARM64 System Image
+      - name: 📱 Create Android Emulator
         run: |
-          yes | sdkmanager --install "system-images;android-34;google_apis;arm64-v8a"
-
-      - name: 📱 Create Android Emulator (ARM64)
-        run: |
-          echo "no" | avdmanager create avd -n test_emulator -k "system-images;android-34;google_apis;arm64-v8a" --device "pixel" --force
+          echo "y" | sdkmanager "system-images;android-34;google_apis;arm64-v8a"
+          echo "no" | avdmanager create avd -n test_emulator -k "system-images;android-34;google_apis;arm64-v8a" --force
 
       - name: ▶️ Start Emulator in Background
         run: |
-          nohup emulator -avd test_emulator -no-audio -no-window -no-snapshot &
-      
+          EMULATOR_PATH=$ANDROID_HOME/emulator/emulator
+          echo "Using emulator binary: $EMULATOR_PATH"
+          $EMULATOR_PATH -avd test_emulator -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot &
+
       - name: ⏳ Wait for Emulator to Boot
+        shell: bash
         run: |
           adb wait-for-device
           boot_completed=""
@@ -44,17 +44,10 @@ jobs:
             boot_completed=$(adb shell getprop sys.boot_completed | tr -d '\r')
             echo "Waiting for emulator to boot..."
           done
-          echo "Emulator booted."
+          echo "✅ Emulator booted."
 
-      - name: 🧪 Run Tests with Maven (TestNG)
+      - name: ✅ Run Tests with Maven (TestNG)
         run: mvn clean test
 
       - name: 🧹 Post Cleanup Java
-        if: always()
-        run: |
-          echo "Cleanup Java if needed"
-
-      - name: 🧹 Post Cleanup Code
-        if: always()
-        run: |
-          echo "Cleanup Code if needed"
+        run: mvn clean
