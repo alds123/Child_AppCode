@@ -1,65 +1,45 @@
-name: Run Mobile Automation Tests on Emulator
+name: Android UI Tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
-  android-tests:
+  test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
-    env:
-      AVD_NAME: test_emulator
-      API_LEVEL: 34
-      TARGET: google_apis
-      ARCH: x86_64
-      EMULATOR_DEVICE: pixel
-      ANDROID_HOME: /usr/local/lib/android/sdk
-      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-      PATH: /usr/local/lib/android/sdk/cmdline-tools/latest/bin:/usr/local/lib/android/sdk/platform-tools:$PATH
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    - name: Checkout Code
+      uses: actions/checkout@v4
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
+    - name: Set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        distribution: temurin
+        java-version: 17
 
-      - name: Download Android SDK components
-        run: |
-          echo "y" | sdkmanager --install "platform-tools" "platforms;android-34" "system-images;android-34;google_apis;x86_64" "emulator"
-          sdkmanager --licenses
+    - name: Set up Android SDK
+      uses: android-actions/setup-android@v3
 
-      - name: Create AVD
-        run: |
-          echo "no" | avdmanager create avd -n $AVD_NAME -k "system-images;android-34;google_apis;x86_64" --device "$EMULATOR_DEVICE"
+    - name: Accept Licenses and Install Emulator
+      run: |
+        yes | sdkmanager --licenses
+        sdkmanager "system-images;android-29;google_apis;x86_64" \
+                   "platforms;android-29" "emulator"
 
-      - name: Start Emulator and Wait for Boot
-        run: |
-          $ANDROID_HOME/emulator/emulator -avd $AVD_NAME -no-audio -no-window -no-snapshot &
-          adb wait-for-device
+    - name: Run Emulator and Execute Tests
+      uses: reactivecircus/android-emulator-runner@v2
+      with:
+        api-level: 29
+        target: google_apis
+        arch: x86_64
+        profile: Nexus 6
+        ram-size: 2048M
+        emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio
+        disable-animations: true
+        script: |
+          echo "Running UI Tests..."
+          mvn clean test
 
-          boot_completed=""
-          until [[ "$boot_completed" == "1" ]]; do
-            boot_completed=$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')
-            echo "Waiting for emulator to boot..."
-            sleep 5
-          done
-
-          echo "Emulator booted successfully."
-
-      - name: Run Tests with Maven
-        run: mvn clean test
-
-      - name: Upload Test Results (Optional)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results
-          path: target/surefire-reports
