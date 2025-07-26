@@ -1,20 +1,20 @@
-name: Run Android TestNG Tests
+name: Android TestNG CI with Appium
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   test:
-    runs-on: macos-latest
+    runs-on: macos-14  # Apple Silicon Runner
 
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up Java 17
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
@@ -23,23 +23,23 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Start Android Emulator and Run Tests
+      - name: Start ARM emulator and run tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
           target: google_apis
-          arch: x86_64
+          arch: arm64-v8a  # 🔁 IMPORTANT: Use arm64 for Apple Silicon
           profile: Nexus 6
-          emulator-options: "-no-window -no-audio -no-boot-anim"
+          emulator-options: -no-window -no-audio -no-boot-anim
           disable-animations: true
           script: |
-            echo "✅ Emulator booted"
+            echo "✅ Emulator Booted"
             adb devices
 
-            echo "📦 Installing Appium"
+            echo "📦 Install Appium"
             npm install -g appium
             appium --base-path /wd/hub --log-level info &
-            sleep 20
+            sleep 25
 
-            echo "🚀 Running Maven TestNG Tests"
+            echo "🚀 Running TestNG tests"
             mvn clean test
