@@ -1,14 +1,19 @@
-name: Android Mobile Automation CI
+name: Android Emulator CI
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   pull_request:
-    branches: [ main ]
 
 jobs:
-  run-tests:
+  test:
     runs-on: macos-14
+
+    env:
+      JAVA_HOME: ${{ env.JAVA_HOME_17_ARM64 }}
+      ANDROID_HOME: /Users/runner/Library/Android/sdk
+      ANDROID_SDK_ROOT: /Users/runner/Library/Android/sdk
 
     steps:
       - name: 📥 Checkout Code
@@ -18,43 +23,31 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: 17
+          java-version: '17'
 
-      - name: 🧱 Set up Android SDK
+      - name: 📦 Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: 📦 Accept Licenses & Install Dependencies
+      - name: 📱 Create Android Emulator
         run: |
-          yes | sdkmanager --licenses
-          sdkmanager "platform-tools" "platforms;android-34" "system-images;android-34;google_apis;arm64-v8a" "emulator"
-
-      - name: 📲 Create Android Emulator (API 34, arm64)
-        run: |
-          echo "no" | avdmanager create avd -n test_emulator -k "system-images;android-34;google_apis;arm64-v8a" --device "pixel"
-          $ANDROID_HOME/emulator/emulator -list-avds
-        shell: bash
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "system-images;android-34;google_apis;arm64-v8a"
+          echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd -n test_emulator -k "system-images;android-34;google_apis;arm64-v8a" -d pixel_3a
 
       - name: 🚀 Start Emulator in Background
         run: |
-          nohup $ANDROID_HOME/emulator/emulator -avd test_emulator -no-snapshot -noaudio -no-window -gpu swiftshader_indirect > /dev/null 2>&1 &
-        shell: bash
+          nohup $ANDROID_HOME/emulator/emulator -avd test_emulator -no-snapshot -no-audio -gpu swiftshader_indirect -delay-adb > /dev/null 2>&1 &
 
       - name: ⏳ Wait for Emulator to Boot
         run: |
-          adb wait-for-device
+          echo "Waiting for emulator to start..."
+          $ANDROID_HOME/platform-tools/adb wait-for-device
           boot_completed=""
           until [[ "$boot_completed" == "1" ]]; do
             sleep 5
-            boot_completed=$(adb shell getprop sys.boot_completed | tr -d '\r')
+            boot_completed=$($ANDROID_HOME/platform-tools/adb shell getprop sys.boot_completed | tr -d '\r')
+            echo "Boot completed: $boot_completed"
           done
-          echo "Emulator booted"
+          echo "✅ Emulator booted"
 
-      - name: 🧪 Run Tests using Maven + TestNG
-        run: mvn clean test -Dsurefire.suiteXmlFiles=testng.xml
-
-      - name: 📤 Upload Test Report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-report
-          path: target/surefire-reports/
+      - name: 🧪 Run Tests with Maven (TestNG)
+        run: mvn clean test
