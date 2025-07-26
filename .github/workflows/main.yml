@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    name: Run Mobile Automation Tests
+    name: Run Mobile Automation Tests on Emulator
     runs-on: macos-14
 
     steps:
@@ -24,17 +24,13 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Required SDK Packages
-        run: |
-          sdkmanager --install "platforms;android-34" "build-tools;34.0.0" "platform-tools" "emulator" "system-images;android-34;google_apis;arm64-v8a"
-
-      - name: Create and Start Emulator
+      - name: Run Tests on Emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
           target: google_apis
           arch: arm64-v8a
           profile: pixel_5
-          script: mvn clean test
-          disable-animations: true
           emulator-options: -no-window -no-audio -no-snapshot
+          disable-animations: true
+          script: mvn clean test
