@@ -30,7 +30,7 @@ public class BaseClass
         options.setCapability("resetKeyboard", true);
         options.setCapability("noReset", false);
 
-        driver = new AndroidDriver(new URL("http://localhost:4723/"), options);
+        driver = new AndroidDriver(new URL("http://localhost:4723/wd/hub"), options);
         driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(10));
         wait = new WebDriverWait(driver, Duration.ofSeconds(15));
         System.out.println("Session started!");
