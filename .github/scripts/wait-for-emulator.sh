@@ -12,7 +12,7 @@ for i in {1..60}; do
     echo "✅ Emulator booted!"
     exit 0
   fi
-  echo "⏱️  Still waiting... (${i}0s)"
+  echo "⏱️ Still waiting... (${i}s)"
   sleep 10
 done
 
