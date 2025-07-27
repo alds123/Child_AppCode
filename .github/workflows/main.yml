@@ -41,28 +41,40 @@ jobs:
         nohup emulator -avd test_emulator -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect > emulator.log 2>&1 &
 
     - name: Wait for emulator to boot
-      run: .github/scripts/wait-for-emulator.sh
+      run: |
+        adb wait-for-device
+        boot_completed=""
+        until [[ "$boot_completed" == "1" ]]; do
+          boot_completed=$(adb shell getprop sys.boot_completed | tr -d '\r')
+          echo "Waiting for emulator to fully boot..."
+          sleep 2
+        done
+        echo "Emulator booted successfully!"
 
-    - name: Install and configure Appium Settings APK
+    - name: Install and configure Appium Settings
       run: |
         curl -L -o appium-settings.apk https://github.com/appium/io.appium.settings/releases/latest/download/settings_apk-debug.apk
         adb install -r appium-settings.apk
 
-        # Launch once to register IME
-        adb shell monkey -p io.appium.settings -c android.intent.category.LAUNCHER 1
-        sleep 3
+        echo "Unlocking screen..."
+        adb shell input keyevent 82
 
-        # Grant permissions
+        echo "Launching Appium Settings app..."
+        adb shell am start -n io.appium.settings/.Settings
+
+        echo "Sleeping to let IME register..."
+        sleep 5
+
+        echo "Enabling UnicodeIME..."
+        adb shell ime list -a
+        adb shell ime enable io.appium.settings/.UnicodeIME
+        adb shell ime set io.appium.settings/.UnicodeIME
+
+        echo "Granting permissions..."
         adb shell appops set io.appium.settings RUN_IN_BACKGROUND allow || true
-        adb shell appops set io.appium.settings WRITE_SETTINGS allow || true
         adb shell pm grant io.appium.settings android.permission.SET_ANIMATION_SCALE || true
         adb shell pm grant io.appium.settings android.permission.CHANGE_CONFIGURATION || true
         adb shell pm grant io.appium.settings android.permission.WRITE_SECURE_SETTINGS || true
-        adb shell pm grant io.appium.settings android.permission.READ_PHONE_STATE || true
-
-        # Enable UnicodeIME
-        adb shell ime enable io.appium.settings/.UnicodeIME || true
-        adb shell ime set io.appium.settings/.UnicodeIME || true
 
     - name: Install Appium and UiAutomator2 Driver
       run: |
