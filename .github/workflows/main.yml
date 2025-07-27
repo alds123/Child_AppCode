@@ -47,12 +47,22 @@ jobs:
       run: |
         curl -L -o appium-settings.apk https://github.com/appium/io.appium.settings/releases/latest/download/settings_apk-debug.apk
         adb install -r appium-settings.apk
-        adb shell am start -n io.appium.settings/.Settings
+
+        # Launch once to register IME
+        adb shell monkey -p io.appium.settings -c android.intent.category.LAUNCHER 1
+        sleep 3
+
+        # Grant permissions
         adb shell appops set io.appium.settings RUN_IN_BACKGROUND allow || true
         adb shell appops set io.appium.settings WRITE_SETTINGS allow || true
         adb shell pm grant io.appium.settings android.permission.SET_ANIMATION_SCALE || true
         adb shell pm grant io.appium.settings android.permission.CHANGE_CONFIGURATION || true
+        adb shell pm grant io.appium.settings android.permission.WRITE_SECURE_SETTINGS || true
+        adb shell pm grant io.appium.settings android.permission.READ_PHONE_STATE || true
+
+        # Enable UnicodeIME
         adb shell ime enable io.appium.settings/.UnicodeIME || true
+        adb shell ime set io.appium.settings/.UnicodeIME || true
 
     - name: Install Appium and UiAutomator2 Driver
       run: |
