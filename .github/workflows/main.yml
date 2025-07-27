@@ -1,4 +1,4 @@
-name: Android Emulator CI with TestNG
+name: Android Emulator CI
 
 on:
   push:
@@ -7,29 +7,43 @@ on:
     branches: [ main ]
 
 jobs:
-  android-test:
-    runs-on: macos-13  # Intel-based machine supports emulator better
+  test:
+    runs-on: macos-13
 
     steps:
-      - name: Checkout Code
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Java 17
+      - name: Set up Java
         uses: actions/setup-java@v3
         with:
-          distribution: 'temurin'
           java-version: '17'
+          distribution: 'temurin'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Download Android SDK packages
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager "platform-tools" "platforms;android-34" "emulator" "system-images;android-34;google_apis;x86_64"
 
-      - name: Run Emulator and Execute Tests
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 34
-          target: google_apis
-          arch: x86_64
-          profile: pixel_5
-          emulator-options: -no-window -no-audio -no-snapshot
-          disable-animations: true
-          script: mvn clean test
+      - name: Create and start Android Emulator
+        run: |
+          echo "no" | avdmanager create avd -n API_34 -k "system-images;android-34;google_apis;x86_64" --device "pixel"
+          emulator -avd API_34 -no-audio -no-window -gpu off -no-snapshot &
+
+      - name: Wait for emulator to boot
+        run: |
+          chmod +x .github/scripts/wait-for-emulator.sh
+          .github/scripts/wait-for-emulator.sh
+
+      - name: Restart adb to fix offline issue
+        run: |
+          adb kill-server
+          adb start-server
+
+      - name: Install Appium
+        run: |
+          npm install -g appium
+          appium --version
+
+      - name: Run tests with Maven
+        run: mvn clean test
