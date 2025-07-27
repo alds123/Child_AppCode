@@ -45,7 +45,7 @@ jobs:
 
     - name: Install Appium Settings APK
       run: |
-        curl -L -o appium-settings.apk https://github.com/appium/io.appium.settings/releases/download/4.5.0/settings_apk-debug.apk
+        curl -L -o appium-settings.apk https://github.com/appium/io.appium.settings/releases/latest/download/settings_apk-debug.apk
         adb install appium-settings.apk
 
     - name: Install Appium and UiAutomator2 Driver
