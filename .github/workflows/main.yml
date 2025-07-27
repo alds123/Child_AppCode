@@ -43,10 +43,16 @@ jobs:
     - name: Wait for emulator to boot
       run: .github/scripts/wait-for-emulator.sh
 
-    - name: Install Appium Settings APK
+    - name: Install and configure Appium Settings APK
       run: |
         curl -L -o appium-settings.apk https://github.com/appium/io.appium.settings/releases/latest/download/settings_apk-debug.apk
-        adb install appium-settings.apk
+        adb install -r appium-settings.apk
+        adb shell am start -n io.appium.settings/.Settings
+        adb shell appops set io.appium.settings RUN_IN_BACKGROUND allow || true
+        adb shell appops set io.appium.settings WRITE_SETTINGS allow || true
+        adb shell pm grant io.appium.settings android.permission.SET_ANIMATION_SCALE || true
+        adb shell pm grant io.appium.settings android.permission.CHANGE_CONFIGURATION || true
+        adb shell ime enable io.appium.settings/.UnicodeIME || true
 
     - name: Install Appium and UiAutomator2 Driver
       run: |
