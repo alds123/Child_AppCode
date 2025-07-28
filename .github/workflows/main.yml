@@ -1,84 +1,54 @@
 name: Android UI Tests
 
+
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+
 
 jobs:
-  build:
+  android-tests:
     runs-on: macos-13
+    timeout-minutes: 30
+
 
     steps:
-    - name: Checkout code
+    - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Set up JDK 17
+
+    - name: Set up Java
       uses: actions/setup-java@v3
       with:
-        distribution: 'temurin'
-        java-version: '17'
+        distribution: temurin
+        java-version: 17
 
-    - name: Download Android SDK tools
+
+    - name: Set environment variables
       run: |
-        echo "y" | sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" "emulator" "system-images;android-34;google_apis;x86_64"
+        echo "ANDROID_HOME=$HOME/Library/Android/sdk" >> $GITHUB_ENV
+        echo "PATH=$HOME/Library/Android/sdk/emulator:$HOME/Library/Android/sdk/platform-tools:$HOME/Library/Android/sdk/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
 
-    - name: Create and start emulator
+    - name: Accept SDK licenses
+      run: yes | $HOME/Library/Android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+
+
+    - name: Install required SDK packages
       run: |
-        echo "no" | avdmanager create avd -n API_36 -k "system-images;android-34;google_apis;x86_64" --force
-        $ANDROID_HOME/emulator/emulator -avd API_36 -no-snapshot -noaudio -no-window -gpu swiftshader_indirect &
-        adb wait-for-device
-        adb shell input keyevent 82
-        adb devices
+        sdkmanager "platform-tools" "platforms;android-34" "emulator" "system-images;android-34;google_apis;x86_64"
 
-    - name: Install Appium
+    - name: Create Android emulator
       run: |
-        npm install -g appium
-        appium -v
+        echo "no" | avdmanager create avd -n test_emulator -k "system-images;android-34;google_apis;x86_64" --device "pixel"
 
-    - name: Install Appium drivers
+    - name: Start Android emulator
       run: |
-        appium driver install uiautomator2
+        nohup emulator -avd test_emulator -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect > emulator.log 2>&1 &
 
-    - name: Start Appium server
-      run: |
-        nohup appium --base-path /wd/hub > appium.log 2>&1 &
-        sleep 10
+    - name: Wait for emulator to boot
+      run: .github/scripts/wait-for-emulator.sh
 
-    - name: Install and configure Appium Settings
-      run: |
-        curl -L -o appium-settings.apk https://github.com/appium/io.appium.settings/releases/latest/download/settings_apk-debug.apk
-        adb install -r appium-settings.apk
 
-        echo "Unlocking screen..."
-        adb shell input keyevent 82
-
-        echo "Launching Appium Settings app..."
-        adb shell monkey -p io.appium.settings -c android.intent.category.LAUNCHER 1
-        sleep 10
-
-        echo "Waiting for UnicodeIME to become available..."
-        retries=10
-        while ! adb shell ime list -a | grep -q 'io.appium.settings/.UnicodeIME'; do
-          echo "UnicodeIME not yet available... waiting..."
-          sleep 2
-          retries=$((retries - 1))
-          if [ "$retries" -le 0 ]; then
-            echo "UnicodeIME not found after retries. Exiting."
-            exit 1
-          fi
-        done
-
-        echo "Enabling UnicodeIME..."
-        adb shell ime enable io.appium.settings/.UnicodeIME
-        adb shell ime set io.appium.settings/.UnicodeIME
-
-        echo "Granting permissions..."
-        adb shell appops set io.appium.settings RUN_IN_BACKGROUND allow || true
-        adb shell pm grant io.appium.settings android.permission.SET_ANIMATION_SCALE || true
-        adb shell pm grant io.appium.settings android.permission.CHANGE_CONFIGURATION || true
-        adb shell pm grant io.appium.settings android.permission.WRITE_SECURE_SETTINGS || true
-
-    - name: Build and run tests
+    - name: Run Tests
       run: mvn clean test
