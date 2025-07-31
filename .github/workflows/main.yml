@@ -1,29 +1,24 @@
 name: Android UI Tests
 
-
 on:
   push:
     branches: [main]
   pull_request:
-
 
 jobs:
   android-tests:
     runs-on: macos-13
     timeout-minutes: 30
 
-
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-
 
     - name: Set up Java
       uses: actions/setup-java@v3
       with:
         distribution: temurin
         java-version: 17
-
 
     - name: Set environment variables
       run: |
@@ -32,7 +27,6 @@ jobs:
 
     - name: Accept SDK licenses
       run: yes | $HOME/Library/Android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
-
 
     - name: Install required SDK packages
       run: |
@@ -47,8 +41,41 @@ jobs:
         nohup emulator -avd test_emulator -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect > emulator.log 2>&1 &
 
     - name: Wait for emulator to boot
-      run: .github/scripts/wait-for-emulator.sh
+      run: |
+        boot_status=""
+        until [[ "$boot_status" == "1" ]]; do
+          boot_status=$(adb shell getprop sys.boot_completed | tr -d '\r')
+          echo "Waiting for emulator to boot..."
+          sleep 5
+        done
+        echo "Emulator booted"
 
+    # ✅ NEW: Install Appium
+    - name: Install Appium
+      run: npm install -g appium
+
+    # ✅ NEW: Start Appium Server
+    - name: Start Appium Server
+      run: |
+        nohup appium --base-path /wd/hub > appium.log 2>&1 &
+        echo "Appium server started"
+
+    # ✅ NEW: Wait for Appium to be reachable
+    - name: Wait for Appium to start
+      run: |
+        for i in {1..10}; do
+          if nc -z 127.0.0.1 4723; then
+            echo "Appium is running"
+            break
+          fi
+          echo "Waiting for Appium..."
+          sleep 3
+        done
 
     - name: Run Tests
       run: mvn clean test
+
+    # Optional: print appium logs if test fails
+    - name: Print Appium logs on failure
+      if: failure()
+      run: cat appium.log
