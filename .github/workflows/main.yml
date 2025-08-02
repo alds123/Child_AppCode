@@ -50,17 +50,22 @@ jobs:
         done
         echo "Emulator booted"
 
-    # ✅ NEW: Install Appium
+    - name: Install Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+
     - name: Install Appium
       run: npm install -g appium
 
-    # ✅ NEW: Start Appium Server
+    - name: Install UiAutomator2 driver
+      run: appium driver install uiautomator2
+
     - name: Start Appium Server
       run: |
         nohup appium --base-path /wd/hub > appium.log 2>&1 &
         echo "Appium server started"
 
-    # ✅ NEW: Wait for Appium to be reachable
     - name: Wait for Appium to start
       run: |
         for i in {1..10}; do
@@ -75,7 +80,6 @@ jobs:
     - name: Run Tests
       run: mvn clean test
 
-    # Optional: print appium logs if test fails
     - name: Print Appium logs on failure
       if: failure()
       run: cat appium.log
