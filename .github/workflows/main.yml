@@ -44,7 +44,6 @@ jobs:
       run: |
         boot_timeout=180
         booted=false
-
         for ((i=0; i<boot_timeout; i+=5)); do
           adb devices
           boot_status=$(adb shell getprop sys.boot_completed | tr -d '\r')
@@ -57,7 +56,6 @@ jobs:
           echo "⏳ Waiting for emulator to boot... ($i sec)"
           sleep 5
         done
-
         if [ "$booted" = false ]; then
           echo "❌ Emulator failed to boot in $boot_timeout seconds."
           echo "=== Emulator log ==="
@@ -99,11 +97,17 @@ jobs:
         done
 
     - name: Install Appium Settings manually
-      run: adb install -r $(npm root -g)/appium/node_modules/io.appium.settings/apks/settings_apk-debug.apk || true
+      run: |
+        SETTINGS_APK_PATH=$(npm root -g)/appium/node_modules/io.appium.settings/apks/settings_apk-debug.apk
+        if [[ -f "$SETTINGS_APK_PATH" ]]; then
+          adb install -r "$SETTINGS_APK_PATH" || true
+        else
+          echo "⚠️ Settings APK not found, skipping manual install"
+        fi
 
     - name: Run Tests
       run: mvn clean test
 
     - name: Print Appium logs on failure
       if: failure()
-      run: cat appium.log
+      run: cat appium.log || echo "⚠️ No Appium log found"
