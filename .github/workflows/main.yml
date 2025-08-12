@@ -15,6 +15,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+          cache: maven   # <-- Enables Maven dependency caching
 
       - name: Install Android SDK
         run: |
