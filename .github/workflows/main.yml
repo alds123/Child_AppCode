@@ -1,127 +1,66 @@
-name: Android UI Tests
+name: Mobile Automation Tests
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   pull_request:
+    branches: [ main ]
 
 jobs:
   android-tests:
     runs-on: macos-13
-    timeout-minutes: 30
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      # 1. Checkout code
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up Java
-      uses: actions/setup-java@v3
-      with:
-        distribution: temurin
-        java-version: 17
+      # 2. Set up Java 17
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
 
-    - name: Set environment variables
-      run: |
-        echo "ANDROID_HOME=$HOME/Library/Android/sdk" >> $GITHUB_ENV
-        echo "PATH=$HOME/Library/Android/sdk/emulator:$HOME/Library/Android/sdk/platform-tools:$HOME/Library/Android/sdk/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
+      # 3. Install Android SDK
+      - name: Install Android SDK
+        run: |
+          brew install --cask android-sdk
+          echo "export ANDROID_HOME=/usr/local/share/android-sdk" >> $GITHUB_ENV
+          echo "export PATH=$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools:$PATH" >> $GITHUB_ENV
+          source $GITHUB_ENV
 
-    - name: Accept SDK licenses
-      run: yes | $HOME/Library/Android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+      # 4. Install emulator & system image
+      - name: Install system image
+        run: |
+          yes | sdkmanager --licenses
+          sdkmanager "platform-tools" "platforms;android-34" "emulator" "system-images;android-34;google_apis;x86_64"
 
-    - name: Install required SDK packages
-      run: |
-        sdkmanager "platform-tools" "platforms;android-34" "emulator" "system-images;android-34;google_apis;x86_64"
+      # 5. Create and start emulator
+      - name: Start emulator
+        run: |
+          avdmanager create avd -n test_emulator -k "system-images;android-34;google_apis;x86_64" --device "pixel"
+          nohup emulator -avd test_emulator -no-window -no-audio -gpu swiftshader_indirect &
+          adb wait-for-device
+          adb shell input keyevent 82
 
-    - name: Create Android emulator
-      run: |
-        echo "no" | avdmanager create avd -n test_emulator -k "system-images;android-34;google_apis;x86_64" --device "pixel"
+      # 6. Install Node.js & Appium
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
 
-    - name: Start Android emulator
-      run: |
-        nohup emulator -avd test_emulator -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -verbose > emulator.log 2>&1 &
+      - name: Install Appium
+        run: |
+          npm install -g appium@latest
+          appium driver install uiautomator2
 
-    - name: Wait for emulator to boot
-      run: |
-        boot_timeout=180
-        booted=false
-
-        for ((i=0; i<boot_timeout; i+=5)); do
-          adb devices
-          boot_status=$(adb shell getprop sys.boot_completed | tr -d '\r')
-          echo "Boot status: $boot_status"
-          if [[ "$boot_status" == "1" ]]; then
-            echo "✅ Emulator booted"
-            booted=true
-            break
-          fi
-          echo "⏳ Waiting for emulator to boot... ($i sec)"
+      # 7. Start Appium server
+      - name: Start Appium server
+        run: |
+          nohup appium > appium.log 2>&1 &
           sleep 5
-        done
 
-        if [ "$booted" = false ]; then
-          echo "❌ Emulator failed to boot in $boot_timeout seconds."
-          echo "=== Emulator log ==="
-          cat emulator.log || echo "No emulator.log found"
-          exit 1
-        fi
-
-    - name: Wait after emulator boot (stabilize)
-      run: sleep 15
-
-    - name: Install Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '18'
-
-    - name: Install Appium
-      run: npm install -g appium
-
-    - name: Install UiAutomator2 driver
-      run: appium driver install uiautomator2
-
-    - name: Install Appium Settings manually
-      run: |
-        SETTINGS_APK_PATH=$(npm root -g)/appium/node_modules/io.appium.settings/apks/settings_apk-debug.apk
-        if [[ -f "$SETTINGS_APK_PATH" ]]; then
-          adb install -r "$SETTINGS_APK_PATH" || true
-        else
-          echo "⚠️ Appium Settings APK not found at $SETTINGS_APK_PATH"
-        fi
-
-    - name: List connected devices
-      run: adb devices -l
-
-    - name: Start Appium Server
-      run: |
-        nohup appium --base-path /wd/hub > appium.log 2>&1 &
-        echo "Appium server started"
-
-    - name: Wait for Appium to start
-      run: |
-        for i in {1..10}; do
-          if nc -z 127.0.0.1 4723; then
-            echo "✅ Appium is running"
-            break
-          fi
-          echo "⏳ Waiting for Appium..."
-          sleep 3
-        done
-
-    - name: Run TestNG Tests
-      run: mvn clean test
-
-    - name: Upload Test Reports
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: testng-reports
-        path: target/surefire-reports/
-
-    - name: Upload Emulator & Appium Logs
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: logs
-        path: |
-          emulator.log
-          appium.log
+      # 8. Run Maven TestNG tests
+      - name: Run tests
+        run: mvn clean test
